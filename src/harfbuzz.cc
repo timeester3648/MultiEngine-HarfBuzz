@@ -1,3 +1,10 @@
+#ifdef MLE_PLATFORM_WINDOWS
+  #define _CRT_SECURE_NO_WARNINGS
+  #define _CRT_NONSTDC_NO_WARNINGS
+  #pragma warning(push)
+  #pragma warning(disable : 4244 4267)
+#endif
+
 #include "hb-aat-layout.cc"
 #include "hb-aat-map.cc"
 #include "hb-blob.cc"
@@ -54,3 +61,9 @@
 #include "hb-ucd.cc"
 #include "hb-unicode.cc"
 #include "hb-uniscribe.cc"
+
+#ifdef MLE_PLATFORM_WINDOWS
+  #undef _CRT_SECURE_NO_WARNINGS
+  #undef _CRT_NONSTDC_NO_WARNINGS
+  #pragma warning(pop)
+#endif
