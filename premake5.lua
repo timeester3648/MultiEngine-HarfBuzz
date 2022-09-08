@@ -16,7 +16,12 @@ project "HarfBuzz"
 	}
 
 	includedirs {
-		"%{IncludeDir.harfbuzz}"
+		"%{IncludeDir.harfbuzz}",
+		"%{IncludeDir.freetype}"
+	}
+
+	defines {
+		"HAVE_FREETYPE"
 	}
 
  	filter "configurations:Debug"
