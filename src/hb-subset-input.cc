@@ -49,8 +49,9 @@ hb_subset_input_create_or_fail (void)
     set = hb_set_create ();
 
   input->axes_location = hb_hashmap_create<hb_tag_t, float> ();
-  
-  if (!input->axes_location || input->in_error ())
+  input->name_table_overrides = hb_hashmap_create<unsigned, hb_bytes_t> ();
+
+  if (!input->axes_location || !input->name_table_overrides || input->in_error ())
   {
     hb_subset_input_destroy (input);
     return nullptr;
@@ -89,7 +90,6 @@ hb_subset_input_create_or_fail (void)
 
   hb_tag_t default_no_subset_tables[] = {
     HB_TAG ('a', 'v', 'a', 'r'),
-    HB_TAG ('f', 'v', 'a', 'r'),
     HB_TAG ('g', 'a', 's', 'p'),
     HB_TAG ('c', 'v', 't', ' '),
     HB_TAG ('f', 'p', 'g', 'm'),
@@ -249,6 +249,14 @@ hb_subset_input_destroy (hb_subset_input_t *input)
 
   hb_hashmap_destroy (input->axes_location);
 
+  if (input->name_table_overrides)
+  {
+    for (auto _ : input->name_table_overrides->values ())
+      _.fini ();
+  }
+
+  hb_hashmap_destroy (input->name_table_overrides);
+
   hb_free (input);
 }
 
@@ -391,9 +399,9 @@ hb_subset_input_get_user_data (const hb_subset_input_t *input,
  *
  * Return value: `true` if success, `false` otherwise
  *
- * Since: REPLACEME
+ * Since: EXPERIMENTAL
  **/
-hb_bool_t
+HB_EXTERN hb_bool_t
 hb_subset_input_pin_axis_to_default (hb_subset_input_t  *input,
                                      hb_face_t          *face,
                                      hb_tag_t            axis_tag)
@@ -415,9 +423,9 @@ hb_subset_input_pin_axis_to_default (hb_subset_input_t  *input,
  *
  * Return value: `true` if success, `false` otherwise
  *
- * Since: REPLACEME
+ * Since: EXPERIMENTAL
  **/
-hb_bool_t
+HB_EXTERN hb_bool_t
 hb_subset_input_pin_axis_location (hb_subset_input_t  *input,
                                    hb_face_t          *face,
                                    hb_tag_t            axis_tag,
@@ -431,4 +439,91 @@ hb_subset_input_pin_axis_location (hb_subset_input_t  *input,
   return input->axes_location->set (axis_tag, val);
 }
 #endif
+#endif
+
+#ifdef HB_EXPERIMENTAL_API
+/**
+ * hb_subset_preprocess
+ * @input: a #hb_face_t object.
+ *
+ * Preprocesses the face and attaches data that will be needed by the
+ * subsetter. Future subsetting operations can then use the precomputed data
+ * to speed up the subsetting operation.
+ *
+ * Since: EXPERIMENTAL
+ **/
+
+HB_EXTERN hb_face_t *
+hb_subset_preprocess (hb_face_t *source)
+{
+  hb_subset_input_t* input = hb_subset_input_create_or_fail ();
+
+  hb_set_clear (hb_subset_input_set(input, HB_SUBSET_SETS_UNICODE));
+  hb_set_invert (hb_subset_input_set(input, HB_SUBSET_SETS_UNICODE));
+
+  hb_set_clear (hb_subset_input_set(input,
+                                    HB_SUBSET_SETS_LAYOUT_FEATURE_TAG));
+  hb_set_invert (hb_subset_input_set(input,
+                                     HB_SUBSET_SETS_LAYOUT_FEATURE_TAG));
+
+  hb_set_clear (hb_subset_input_set(input,
+                                    HB_SUBSET_SETS_LAYOUT_SCRIPT_TAG));
+  hb_set_invert (hb_subset_input_set(input,
+                                     HB_SUBSET_SETS_LAYOUT_SCRIPT_TAG));
+
+  hb_set_clear (hb_subset_input_set(input,
+                                    HB_SUBSET_SETS_NAME_ID));
+  hb_set_invert (hb_subset_input_set(input,
+                                     HB_SUBSET_SETS_NAME_ID));
+
+  hb_subset_input_set_flags(input,
+                            HB_SUBSET_FLAGS_NOTDEF_OUTLINE |
+                            HB_SUBSET_FLAGS_GLYPH_NAMES |
+                            HB_SUBSET_FLAGS_RETAIN_GIDS);
+  input->attach_accelerator_data = true;
+
+  hb_face_t* new_source = hb_subset_or_fail (source, input);
+  hb_subset_input_destroy (input);
+
+  return new_source;
+}
+
+/**
+ * hb_subset_input_override_name_table:
+ * @input: a #hb_subset_input_t object.
+ * @name_id: name_id of a nameRecord
+ * @name_str: pointer to name string new value or null to indicate should remove
+ * @str_len: the size of @name_str, or -1 if it is `NULL`-terminated
+ *
+ * Override the name string of a nameRecord with specified name_id
+ * Since: EXPERIMENTAL
+ **/
+HB_EXTERN void
+hb_subset_input_override_name_table (hb_subset_input_t  *input,
+                                     hb_ot_name_id_t     name_id,
+                                     const char         *name_str,
+                                     int                 str_len /* -1 means nul-terminated */)
+{
+  if (!name_str)
+  {
+    hb_set_del (hb_subset_input_set(input, HB_SUBSET_SETS_NAME_ID), name_id);
+    return;
+  }
+
+  if (str_len == -1)
+    str_len = strlen (name_str);
+
+  if (!str_len)
+  {
+    hb_set_del (hb_subset_input_set(input, HB_SUBSET_SETS_NAME_ID), name_id);
+    return;
+  }
+
+  char *override_name = (char *) hb_malloc (str_len);
+  if (unlikely (!override_name)) return;
+
+  hb_memcpy (override_name, name_str, str_len);
+  input->name_table_overrides->set (name_id, hb_bytes_t (override_name, str_len));
+}
+
 #endif

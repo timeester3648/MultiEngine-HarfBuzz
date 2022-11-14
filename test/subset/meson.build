@@ -33,7 +33,6 @@ tests = [
   'layout.duplicate_features',
   'layout.unsorted_featurelist',
   'layout.drop_feature',
-  'layout.default_features',
   'cmap',
   'cmap14',
   'sbix',
@@ -41,8 +40,8 @@ tests = [
   'colr_glyphs',
   'math',
   'math_coverage_offset',
-# TODO: re-enable once colrv1 subsetting is stabilized.
-# 'colrv1.notoemoji',
+  # TODO: re-enable once colrv1 subsetting is stabilized.
+  # 'colrv1.notoemoji',
   'colrv1',
   'colr_with_components',
   'cbdt',
@@ -50,11 +49,17 @@ tests = [
   'glyph_names',
   'post',
   '32bit_var_store',
-# instacing tests, enable when --instance is not experimental
-# 'pin_all_at_default',
-# 'instantiate_glyf',
-# 'full_instance',
 ]
+
+if get_option('experimental_api')
+  # instacing tests, only supported in experimental api
+  tests += [
+    'pin_all_at_default',
+    'instantiate_glyf',
+    'full_instance',
+    'instance_feature_variations',
+  ]
+endif
 
 repack_tests = [
   'basic',
