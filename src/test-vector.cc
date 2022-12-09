@@ -26,6 +26,7 @@
 #include "hb.hh"
 #include "hb-vector.hh"
 #include "hb-set.hh"
+#include "hb-map.hh"
 #include <string>
 
 
@@ -161,7 +162,24 @@ main (int argc, char **argv)
 
     v2 = v;
 
-    v2.remove (50);
+    v2.remove_ordered (50);
+    v2.remove_unordered (50);
+  }
+
+  {
+    hb_vector_t<hb_set_t> v;
+    hb_set_t s {1, 5, 7};
+    v.push (s);
+    v << s;
+    assert (s.get_population () == 3);
+    v << std::move (s);
+    assert (s.get_population () == 0);
+  }
+
+  {
+    hb_vector_t<hb_map_t> v;
+    hb_map_t m;
+    v.push (m);
   }
 
   return 0;

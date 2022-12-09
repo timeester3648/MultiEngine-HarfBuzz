@@ -34,11 +34,7 @@
 
 static hb_face_t* preprocess_face(hb_face_t* face)
 {
-  #ifdef HB_EXPERIMENTAL_API
   return hb_subset_preprocess (face);
-  #else
-  return hb_face_reference(face);
-  #endif
 }
 
 /*
@@ -120,7 +116,7 @@ struct subset_main_t : option_parser_t, face_options_t, output_options_t<false>
     for (unsigned i = 0; i < num_iterations; i++)
     {
       hb_face_destroy (new_face);
-      new_face = hb_subset_or_fail (face, input);
+      new_face = hb_subset_or_fail (orig_face, input);
     }
 
     bool success = new_face;
@@ -840,7 +836,7 @@ subset_main_t::add_options ()
 
   GOptionEntry glyphset_entries[] =
   {
-    {"gids",		0, 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_gids,
+    {"gids",		'g', 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_gids,
      "Specify glyph IDs or ranges to include in the subset.\n"
      "                                                       "
      "Use --gids-=... to subtract codepoints from the current set.", "list of glyph indices/ranges or *"},
@@ -854,13 +850,13 @@ subset_main_t::add_options ()
 
     {"glyphs-file",	0, 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_file_for<parse_glyphs>,	"Specify file to read glyph names from", "filename"},
 
-    {"text",		0, 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_text,			"Specify text to include in the subset. Use --text-=... to subtract codepoints from the current set.", "string"},
+    {"text",		't', 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_text,			"Specify text to include in the subset. Use --text-=... to subtract codepoints from the current set.", "string"},
     {"text-",		0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK, (gpointer) &parse_text,			"Specify text to remove from the subset", "string"},
     {"text+",		0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK, (gpointer) &parse_text,			"Specify text to include in the subset", "string"},
 
 
     {"text-file",	0, 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_file_for<parse_text, false>,"Specify file to read text from", "filename"},
-    {"unicodes",	0, 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_unicodes,
+    {"unicodes",	'u', 0, G_OPTION_ARG_CALLBACK, (gpointer) &parse_unicodes,
      "Specify Unicode codepoints or ranges to include in the subset. Use * to include all codepoints.\n"
      "                                                       "
      "--unicodes-=... can be used to subtract codepoints from the current set.\n"

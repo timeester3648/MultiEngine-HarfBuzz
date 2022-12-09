@@ -84,6 +84,7 @@
 #define HB_NO_OT_SHAPE_FRACTIONS
 #define HB_NO_STYLE
 #define HB_NO_SUBSET_LAYOUT
+#define HB_NO_VERTICAL
 #define HB_NO_VAR
 #endif
 
@@ -111,6 +112,11 @@
 #define HB_IF_NOT_DEPRECATED(x)
 #else
 #define HB_IF_NOT_DEPRECATED(x) x
+#endif
+
+#ifdef HB_NO_SHAPER
+#define HB_NO_OT_SHAPE
+#define HB_NO_AAT_SHAPE
 #endif
 
 #ifdef HB_NO_AAT
@@ -159,6 +165,7 @@
 #define HB_NO_OT_SHAPER_HEBREW_FALLBACK
 #define HB_NO_OT_SHAPER_THAI_FALLBACK
 #define HB_NO_OT_SHAPER_VOWEL_CONSTRAINTS
+#define HB_NO_OT_SHAPER_MYANMAR_ZAWGYI
 #endif
 
 #ifdef NDEBUG
