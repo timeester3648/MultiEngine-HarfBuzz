@@ -23,3 +23,6 @@ project "HarfBuzz"
 	defines {
 		"HAVE_FREETYPE"
 	}
+
+	filter "action:vs*"
+		disablewarnings { "4805" }

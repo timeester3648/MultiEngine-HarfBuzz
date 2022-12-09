@@ -316,6 +316,7 @@
     <ClInclude Include="src\hb-map.hh" />
     <ClInclude Include="src\hb-meta.hh" />
     <ClInclude Include="src\hb-ms-feature-ranges.hh" />
+    <ClInclude Include="src\hb-multimap.hh" />
     <ClInclude Include="src\hb-mutex.hh" />
     <ClInclude Include="src\hb-null.hh" />
     <ClInclude Include="src\hb-number-parser.hh" />
