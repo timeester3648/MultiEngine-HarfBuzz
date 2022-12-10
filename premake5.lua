@@ -24,5 +24,5 @@ project "HarfBuzz"
 		"HAVE_FREETYPE"
 	}
 
-	filter "action:vs*"
+	filter "toolset:msc"
 		disablewarnings { "4805" }
