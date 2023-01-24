@@ -115,7 +115,7 @@ struct hb_closure_context_t :
 	  return true;
       }
 
-      hb_set_clear (done_lookups_glyph_set->get (lookup_index));
+      done_lookups_glyph_set->get (lookup_index)->clear ();
     }
 
     hb_set_t *covered_glyph_set = done_lookups_glyph_set->get (lookup_index);
@@ -1538,18 +1538,19 @@ static void context_closure_recurse_lookups (hb_closure_context_t *c,
 					     intersected_glyphs_func_t intersected_glyphs_func,
 					     void *cache)
 {
-  hb_set_t *covered_seq_indicies = hb_set_create ();
+  hb_set_t covered_seq_indicies;
+  hb_set_t pos_glyphs;
   for (unsigned int i = 0; i < lookupCount; i++)
   {
     unsigned seqIndex = lookupRecord[i].sequenceIndex;
     if (seqIndex >= inputCount) continue;
 
     bool has_pos_glyphs = false;
-    hb_set_t pos_glyphs;
 
-    if (!hb_set_has (covered_seq_indicies, seqIndex))
+    if (!covered_seq_indicies.has (seqIndex))
     {
       has_pos_glyphs = true;
+      pos_glyphs.clear ();
       if (seqIndex == 0)
       {
         switch (context_format) {
@@ -1578,7 +1579,7 @@ static void context_closure_recurse_lookups (hb_closure_context_t *c,
       }
     }
 
-    covered_seq_indicies->add (seqIndex);
+    covered_seq_indicies.add (seqIndex);
     if (has_pos_glyphs) {
       c->push_cur_active_glyphs () = std::move (pos_glyphs);
     } else {
@@ -1589,12 +1590,10 @@ static void context_closure_recurse_lookups (hb_closure_context_t *c,
     if (context_format == ContextFormat::CoverageBasedContext)
       endIndex += 1;
 
-    c->recurse (lookupRecord[i].lookupListIndex, covered_seq_indicies, seqIndex, endIndex);
+    c->recurse (lookupRecord[i].lookupListIndex, &covered_seq_indicies, seqIndex, endIndex);
 
     c->pop_cur_done_glyphs ();
   }
-
-  hb_set_destroy (covered_seq_indicies);
 }
 
 template <typename context_t>
@@ -1651,7 +1650,7 @@ static inline void apply_lookup (hb_ot_apply_context_t *c,
       if (buffer->have_output)
         c->buffer->sync_so_far ();
       c->buffer->message (c->font,
-			  "recursing to lookup %u at %d",
+			  "recursing to lookup %u at %u",
 			  (unsigned) lookupRecord[i].lookupListIndex,
 			  buffer->idx);
     }
@@ -2224,7 +2223,7 @@ struct ContextFormat1_4
     if (unlikely (!c->serializer->extend_min (out))) return_trace (false);
     out->format = format;
 
-    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
+    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? &c->plan->gsub_lookups : &c->plan->gpos_lookups;
     hb_sorted_vector_t<hb_codepoint_t> new_coverage;
     + hb_zip (this+coverage, ruleSet)
     | hb_filter (glyphset, hb_first)
@@ -2461,7 +2460,7 @@ struct ContextFormat2_5
     hb_set_t coverage_glyph_classes;
     (this+classDef).intersected_classes (&retained_coverage_glyphs, &coverage_glyph_classes);
 
-    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
+    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? &c->plan->gsub_lookups : &c->plan->gpos_lookups;
     bool ret = true;
     int non_zero_index = -1, index = 0;
     auto snapshot = c->serializer->snapshot();
@@ -2641,7 +2640,7 @@ struct ContextFormat3
     }
 
     const auto& lookupRecord = StructAfter<UnsizedArrayOf<LookupRecord>> (coverageZ.as_array (glyphCount));
-    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
+    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? &c->plan->gsub_lookups : &c->plan->gpos_lookups;
 
 
     unsigned count = serialize_lookuprecord_array (c->serializer, lookupRecord.as_array (lookupCount), lookup_map);
@@ -2681,8 +2680,8 @@ struct Context
   template <typename context_t, typename ...Ts>
   typename context_t::return_t dispatch (context_t *c, Ts&&... ds) const
   {
+    if (unlikely (!c->may_dispatch (this, &u.format))) return c->no_dispatch_return_value ();
     TRACE_DISPATCH (this, u.format);
-    if (unlikely (!c->may_dispatch (this, &u.format))) return_trace (c->no_dispatch_return_value ());
     switch (u.format) {
     case 1: return_trace (c->dispatch (u.format1, std::forward<Ts> (ds)...));
     case 2: return_trace (c->dispatch (u.format2, std::forward<Ts> (ds)...));
@@ -3305,7 +3304,7 @@ struct ChainContextFormat1_4
     if (unlikely (!c->serializer->extend_min (out))) return_trace (false);
     out->format = format;
 
-    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
+    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? &c->plan->gsub_lookups : &c->plan->gpos_lookups;
     hb_sorted_vector_t<hb_codepoint_t> new_coverage;
     + hb_zip (this+coverage, ruleSet)
     | hb_filter (glyphset, hb_first)
@@ -3585,7 +3584,7 @@ struct ChainContextFormat2_5
 
     int non_zero_index = -1, index = 0;
     bool ret = true;
-    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
+    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? &c->plan->gsub_lookups : &c->plan->gpos_lookups;
     auto last_non_zero = c->serializer->snapshot ();
     for (const auto& _ : + hb_enumerate (ruleSet)
 			 | hb_filter (input_klass_map, hb_first))
@@ -3827,7 +3826,7 @@ struct ChainContextFormat3
       return_trace (false);
 
     const auto &lookup = StructAfter<decltype (lookupX)> (lookahead);
-    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
+    const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? &c->plan->gsub_lookups : &c->plan->gpos_lookups;
 
     HBUINT16 *lookupCount = c->serializer->copy<HBUINT16> (lookup.len);
     if (!lookupCount) return_trace (false);
@@ -3875,8 +3874,8 @@ struct ChainContext
   template <typename context_t, typename ...Ts>
   typename context_t::return_t dispatch (context_t *c, Ts&&... ds) const
   {
+    if (unlikely (!c->may_dispatch (this, &u.format))) return c->no_dispatch_return_value ();
     TRACE_DISPATCH (this, u.format);
-    if (unlikely (!c->may_dispatch (this, &u.format))) return_trace (c->no_dispatch_return_value ());
     switch (u.format) {
     case 1: return_trace (c->dispatch (u.format1, std::forward<Ts> (ds)...));
     case 2: return_trace (c->dispatch (u.format2, std::forward<Ts> (ds)...));
@@ -3915,8 +3914,8 @@ struct ExtensionFormat1
   template <typename context_t, typename ...Ts>
   typename context_t::return_t dispatch (context_t *c, Ts&&... ds) const
   {
+    if (unlikely (!c->may_dispatch (this, this))) return c->no_dispatch_return_value ();
     TRACE_DISPATCH (this, format);
-    if (unlikely (!c->may_dispatch (this, this))) return_trace (c->no_dispatch_return_value ());
     return_trace (get_subtable<typename T::SubTable> ().dispatch (c, get_type (), std::forward<Ts> (ds)...));
   }
 
@@ -3994,8 +3993,8 @@ struct Extension
   template <typename context_t, typename ...Ts>
   typename context_t::return_t dispatch (context_t *c, Ts&&... ds) const
   {
+    if (unlikely (!c->may_dispatch (this, &u.format))) return c->no_dispatch_return_value ();
     TRACE_DISPATCH (this, u.format);
-    if (unlikely (!c->may_dispatch (this, &u.format))) return_trace (c->no_dispatch_return_value ());
     switch (u.format) {
     case 1: return_trace (u.format1.dispatch (c, std::forward<Ts> (ds)...));
     default:return_trace (c->default_return_value ());
@@ -4020,6 +4019,7 @@ struct hb_ot_layout_lookup_accelerator_t
   void init (const TLookup &lookup)
   {
     subtables.init ();
+    subtables.alloc (lookup.get_subtable_count (), true);
     hb_accelerate_subtables_context_t c_accelerate_subtables (subtables);
     lookup.dispatch (&c_accelerate_subtables);
 
@@ -4142,8 +4142,11 @@ struct GSUBGPOSVersion1_2
   bool subset (hb_subset_layout_context_t *c) const
   {
     TRACE_SUBSET (this);
-    auto *out = c->subset_context->serializer->embed (*this);
-    if (unlikely (!out)) return_trace (false);
+
+    auto *out = c->subset_context->serializer->start_embed (this);
+    if (unlikely (!c->subset_context->serializer->extend_min (out))) return_trace (false);
+
+    out->version = version;
 
     typedef LookupOffsetList<TLookup, typename Types::HBUINT> TLookupList;
     reinterpret_cast<typename Types::template OffsetTo<TLookupList> &> (out->lookupList)
@@ -4166,9 +4169,23 @@ struct GSUBGPOSVersion1_2
 #ifndef HB_NO_VAR
     if (version.to_int () >= 0x00010001u)
     {
-      bool ret = out->featureVars.serialize_subset (c->subset_context, featureVars, this, c);
+      auto snapshot = c->subset_context->serializer->snapshot ();
+      if (!c->subset_context->serializer->extend_min (&out->featureVars))
+        return_trace (false);
+
+      // TODO(qxliu76): the current implementation doesn't correctly handle feature variations
+      //                that are dropped by instancing when the associated conditions don't trigger.
+      //                Since partial instancing isn't yet supported this isn't an issue yet but will
+      //                need to be fixed for partial instancing.
+
+
+
+      // if all axes are pinned all feature vars are dropped.
+      bool ret = !c->subset_context->plan->all_axes_pinned
+                 && out->featureVars.serialize_subset (c->subset_context, featureVars, this, c);
       if (!ret && version.major == 1)
       {
+        c->subset_context->serializer->revert (snapshot);
 	out->version.major = 1;
 	out->version.minor = 0;
       }

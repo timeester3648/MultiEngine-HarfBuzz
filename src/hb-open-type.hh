@@ -147,8 +147,11 @@ struct HBFixed : Type
   static constexpr float shift = (float) (1 << fraction_bits);
   static_assert (Type::static_size * 8 > fraction_bits, "");
 
-  HBFixed& operator = (typename Type::type i ) { Type::operator= (i); return *this; }
-  float to_float () const  { return ((int32_t) Type::v) / shift; }
+  operator signed () const = delete;
+  operator unsigned () const = delete;
+  typename Type::type to_int () const { return Type::v; }
+  void set_int (typename Type::type i ) { Type::v = i; }
+  float to_float (float offset = 0) const  { return ((int32_t) Type::v + offset) / shift; }
   void set_float (float f) { Type::v = roundf (f * shift); }
   public:
   DEFINE_SIZE_STATIC (Type::static_size);
@@ -156,6 +159,8 @@ struct HBFixed : Type
 
 /* 16-bit signed fixed number with the low 14 bits of fraction (2.14). */
 using F2DOT14 = HBFixed<HBINT16, 14>;
+using F4DOT12 = HBFixed<HBINT16, 12>;
+using F6DOT10 = HBFixed<HBINT16, 10>;
 
 /* 32-bit signed fixed-point number (16.16). */
 using F16DOT16 = HBFixed<HBINT32, 16>;
@@ -209,6 +214,12 @@ typedef Index NameID;
 
 struct VarIdx : HBUINT32 {
   static constexpr unsigned NO_VARIATION = 0xFFFFFFFFu;
+  static_assert (NO_VARIATION == HB_OT_LAYOUT_NO_VARIATIONS_INDEX, "");
+  static uint32_t add (uint32_t i, unsigned short v)
+  {
+    if (i == NO_VARIATION) return i;
+    return i + v;
+  }
   VarIdx& operator = (uint32_t i) { HBUINT32::operator= (i); return *this; }
 };
 DECLARE_NULL_NAMESPACE_BYTES (OT, VarIdx);

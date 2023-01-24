@@ -149,6 +149,9 @@ HB_EXTERN void *
 hb_subset_input_get_user_data (const hb_subset_input_t *input,
 			       hb_user_data_key_t      *key);
 
+HB_EXTERN void
+hb_subset_input_keep_everything (hb_subset_input_t *input);
+
 HB_EXTERN hb_set_t *
 hb_subset_input_unicode_set (hb_subset_input_t *input);
 
@@ -165,8 +168,6 @@ HB_EXTERN void
 hb_subset_input_set_flags (hb_subset_input_t *input,
 			   unsigned value);
 
-#ifdef HB_EXPERIMENTAL_API
-#ifndef HB_NO_VAR
 HB_EXTERN hb_bool_t
 hb_subset_input_pin_axis_to_default (hb_subset_input_t  *input,
 				     hb_face_t          *face,
@@ -177,8 +178,6 @@ hb_subset_input_pin_axis_location (hb_subset_input_t  *input,
 				   hb_face_t          *face,
 				   hb_tag_t            axis_tag,
 				   float               axis_value);
-#endif
-#endif
 
 #ifdef HB_EXPERIMENTAL_API
 HB_EXTERN hb_bool_t
@@ -208,13 +207,13 @@ hb_subset_plan_create_or_fail (hb_face_t                 *face,
 HB_EXTERN void
 hb_subset_plan_destroy (hb_subset_plan_t *plan);
 
-HB_EXTERN const hb_map_t*
+HB_EXTERN hb_map_t *
 hb_subset_plan_old_to_new_glyph_mapping (const hb_subset_plan_t *plan);
 
-HB_EXTERN const hb_map_t*
+HB_EXTERN hb_map_t *
 hb_subset_plan_new_to_old_glyph_mapping (const hb_subset_plan_t *plan);
 
-HB_EXTERN const hb_map_t*
+HB_EXTERN hb_map_t *
 hb_subset_plan_unicode_to_old_glyph_mapping (const hb_subset_plan_t *plan);
 
 

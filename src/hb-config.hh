@@ -35,8 +35,9 @@
 #include "config.h"
 #endif
 
-#ifndef HB_EXPERIMENTAL
+#ifndef HB_EXPERIMENTAL_API
 #define HB_NO_BEYOND_64K
+#define HB_NO_VAR_COMPOSITES
 #endif
 
 #ifdef HB_TINY
@@ -79,9 +80,10 @@
 #define HB_NO_MMAP
 #define HB_NO_NAME
 #define HB_NO_OPEN
-#define HB_NO_SETLOCALE
 #define HB_NO_OT_FONT_GLYPH_NAMES
 #define HB_NO_OT_SHAPE_FRACTIONS
+#define HB_NO_PAINT
+#define HB_NO_SETLOCALE
 #define HB_NO_STYLE
 #define HB_NO_SUBSET_LAYOUT
 #define HB_NO_VERTICAL

@@ -69,6 +69,7 @@ struct font_options_t : face_options_t
   mutable double font_size_y = DEFAULT_FONT_SIZE;
   char *font_funcs = nullptr;
   int ft_load_flags = 2;
+  unsigned int named_instance = HB_FONT_NO_VAR_NAMED_INSTANCE;
 
   hb_font_t *font = nullptr;
 };
@@ -107,6 +108,7 @@ font_options_t::post_parse (GError **error)
   hb_font_set_scale (font, scale_x, scale_y);
 
 #ifndef HB_NO_VAR
+  hb_font_set_var_named_instance (font, named_instance);
   hb_font_set_variations (font, variations, num_variations);
 #endif
 
@@ -156,7 +158,6 @@ font_options_t::post_parse (GError **error)
     hb_font_destroy (old_font);
   }
 }
-
 
 #ifndef HB_NO_VAR
 static gboolean
@@ -272,7 +273,7 @@ font_options_t::add_options (option_parser_t *parser)
     font_size_text = (char *) "Font size (default: upem)";
   else
   {
-    font_size_text = g_strdup_printf ("Font size (default: %d)", DEFAULT_FONT_SIZE);
+    font_size_text = g_strdup_printf ("Font size (default: %u)", DEFAULT_FONT_SIZE);
     parser->free_later (font_size_text);
   }
 
@@ -283,7 +284,7 @@ font_options_t::add_options (option_parser_t *parser)
 			      G_OPTION_ARG_CALLBACK,	(gpointer) &parse_font_size,	font_size_text,					"1/2 integers or 'upem'"},
     {"font-ppem",	0, font_size_flags,
 			      G_OPTION_ARG_CALLBACK,	(gpointer) &parse_font_ppem,	"Set x,y pixels per EM (default: 0; disabled)",	"1/2 integers"},
-    {"font-ptem",	0, 0,
+    {"font-ptem",	0, font_size_flags,
 			      G_OPTION_ARG_DOUBLE,	&this->ptem,			"Set font point-size (default: 0; disabled)",	"point-size"},
     {"font-slant",	0, 0,
 			      G_OPTION_ARG_DOUBLE,	&this->slant,			"Set synthetic slant (default: 0)",		 "slant ratio; eg. 0.2"},
@@ -315,6 +316,7 @@ font_options_t::add_options (option_parser_t *parser)
 
   GOptionEntry entries2[] =
   {
+    {"named-instance",	0, 0, G_OPTION_ARG_INT,         &this->named_instance,		"Set named-instance index (default: none)",	"index"},
     {"variations",	0, 0, G_OPTION_ARG_CALLBACK,	(gpointer) &parse_variations,	variations_help,	"list"},
     {nullptr}
   };

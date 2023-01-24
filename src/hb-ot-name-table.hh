@@ -391,7 +391,7 @@ struct name
 
 #ifdef HB_EXPERIMENTAL_API
     const hb_hashmap_t<hb_ot_name_record_ids_t, hb_bytes_t> *name_table_overrides =
-        c->plan->name_table_overrides;
+        &c->plan->name_table_overrides;
 #endif
     
     auto it =
@@ -422,16 +422,26 @@ struct name
     ;
 
 #ifdef HB_EXPERIMENTAL_API
+    hb_hashmap_t<hb_ot_name_record_ids_t, unsigned> retained_name_record_ids;
+    for (const NameRecord& rec : it)
+    {
+      hb_ot_name_record_ids_t rec_ids (rec.platformID,
+                                       rec.encodingID,
+                                       rec.languageID,
+                                       rec.nameID);
+      retained_name_record_ids.set (rec_ids, 1);
+    }
+
     hb_vector_t<hb_ot_name_record_ids_t> insert_name_records;
     if (!name_table_overrides->is_empty ())
     {
-      if (unlikely (!insert_name_records.alloc (name_table_overrides->get_population ())))
+      if (unlikely (!insert_name_records.alloc (name_table_overrides->get_population (), true)))
         return_trace (false);
       for (const auto& record_ids : name_table_overrides->keys ())
       {
         if (name_table_overrides->get (record_ids).length == 0)
           continue;
-        if (has_name_record_with_ids (record_ids))
+        if (retained_name_record_ids.has (record_ids))
           continue;
         insert_name_records.push (record_ids);
       }
@@ -475,7 +485,7 @@ struct name
       const hb_array_t<const NameRecord> all_names (this->table->nameRecordZ.arrayZ,
 						    this->table->count);
 
-      this->names.alloc (all_names.length);
+      this->names.alloc (all_names.length, true);
 
       for (unsigned int i = 0; i < all_names.length; i++)
       {
@@ -553,22 +563,6 @@ struct name
     hb_blob_ptr_t<name> table;
     hb_vector_t<hb_ot_name_entry_t> names;
   };
-
-  private:
-  // sometimes NameRecords are not sorted in the font file, so use linear search
-  // here
-  bool has_name_record_with_ids (const hb_ot_name_record_ids_t& record_ids) const
-  {
-    for (const auto& record : nameRecordZ.as_array (count))
-    {
-      if (record.platformID == record_ids.platform_id &&
-          record.encodingID == record_ids.encoding_id &&
-          record.languageID == record_ids.language_id &&
-          record.nameID == record_ids.name_id)
-        return true;
-    }
-    return false;
-  }
 
   public:
   /* We only implement format 0 for now. */
