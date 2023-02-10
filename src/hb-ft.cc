@@ -45,7 +45,7 @@
 #include FT_MULTIPLE_MASTERS_H
 #include FT_OUTLINE_H
 #include FT_TRUETYPE_TABLES_H
-#if (FREETYPE_MAJOR*10000 + FREETYPE_MINOR*100 + FREETYPE_PATCH) >= 21101
+#if (FREETYPE_MAJOR*10000 + FREETYPE_MINOR*100 + FREETYPE_PATCH) >= 21300
 #include FT_COLOR_H
 #endif
 
@@ -84,7 +84,7 @@
  */
 
 
-using hb_ft_advance_cache_t = hb_cache_t<16, 24, 8, false>;
+using hb_ft_advance_cache_t = hb_cache_t<16, 8, 8, false>;
 
 struct hb_ft_font_t
 {
@@ -128,8 +128,6 @@ static void
 _hb_ft_font_destroy (void *data)
 {
   hb_ft_font_t *ft_font = (hb_ft_font_t *) data;
-
-  ft_font->advance_cache.fini ();
 
   if (ft_font->unref)
     _hb_ft_face_destroy (ft_font->ft_face);
@@ -481,10 +479,11 @@ hb_ft_get_glyph_h_advances (hb_font_t* font, void* font_data,
       /* Work around bug that FreeType seems to return negative advance
        * for variable-set fonts if x_scale is negative! */
       v = abs (v);
+      v = (int) (v * x_mult + (1<<9)) >> 10;
       ft_font->advance_cache.set (glyph, v);
     }
 
-    *first_advance = (int) (v * x_mult + (1<<9)) >> 10;
+    *first_advance = v;
     first_glyph = &StructAtOffsetUnaligned<hb_codepoint_t> (first_glyph, glyph_stride);
     first_advance = &StructAtOffsetUnaligned<hb_position_t> (first_advance, advance_stride);
   }
@@ -851,7 +850,7 @@ hb_ft_draw_glyph (hb_font_t *font HB_UNUSED,
 #endif
 
 #ifndef HB_NO_PAINT
-#if (FREETYPE_MAJOR*10000 + FREETYPE_MINOR*100 + FREETYPE_PATCH) >= 21101
+#if (FREETYPE_MAJOR*10000 + FREETYPE_MINOR*100 + FREETYPE_PATCH) >= 21300
 
 #include "hb-ft-colr.hh"
 
@@ -972,7 +971,7 @@ static struct hb_ft_font_funcs_lazy_loader_t : hb_font_funcs_lazy_loader_t<hb_ft
 #endif
 
 #ifndef HB_NO_PAINT
-#if (FREETYPE_MAJOR*10000 + FREETYPE_MINOR*100 + FREETYPE_PATCH) >= 21101
+#if (FREETYPE_MAJOR*10000 + FREETYPE_MINOR*100 + FREETYPE_PATCH) >= 21300
     hb_font_funcs_set_paint_glyph_func (funcs, hb_ft_paint_glyph, nullptr, nullptr);
 #endif
 #endif

@@ -205,12 +205,19 @@ endif
 
 if cairo_dep.found()
   conf.set('HAVE_CAIRO', 1)
+  check_cairo_funcs = [
+    ['cairo_user_font_face_set_render_color_glyph_func', {'deps': cairo_dep}],
+    ['cairo_font_options_get_custom_palette_color', {'deps': cairo_dep}],
+    ['cairo_user_scaled_font_get_foreground_source', {'deps': cairo_dep}],
+  ]
+
   if cairo_dep.type_name() == 'internal'
-    conf.set('HAVE_CAIRO_USER_FONT_FACE_SET_RENDER_COLOR_GLYPH_FUNC', 1)
-    conf.set('HAVE_CAIRO_FONT_OPTIONS_GET_CUSTOM_PALETTE_COLOR', 1)
+    foreach func: check_cairo_funcs
+      name = func[0]
+      conf.set('HAVE_@0@'.format(name.to_upper()), 1)
+    endforeach
   else
-    check_funcs += [['cairo_user_font_face_set_render_color_glyph_func', {'deps': cairo_dep}]]
-    check_funcs += [['cairo_font_options_get_custom_palette_color', {'deps': cairo_dep}]]
+    check_funcs += check_cairo_funcs
   endif
 endif
 
@@ -382,6 +389,9 @@ endif
 
 configure_file(output: 'config.h', configuration: conf)
 
+alias_target('lib', libharfbuzz)
+alias_target('libs', libharfbuzz, libharfbuzz_subset)
+
 build_summary = {
   'Directories':
     {'prefix': get_option('prefix'),
@@ -396,7 +406,8 @@ build_summary = {
      'ICU': conf.get('HAVE_ICU', 0) == 1,
     },
   'Font callbacks (the more the merrier)':
-    {'FreeType': conf.get('HAVE_FREETYPE', 0) == 1,
+    {'Builtin' : true,
+     'FreeType': conf.get('HAVE_FREETYPE', 0) == 1,
     },
   'Dependencies used for command-line utilities':
     {'Cairo': conf.get('HAVE_CAIRO', 0) == 1,
@@ -413,6 +424,7 @@ build_summary = {
   'Other features':
     {'Documentation': conf.get('HAVE_GTK_DOC', 0) == 1,
      'GObject bindings': conf.get('HAVE_GOBJECT', 0) == 1,
+     'Cairo integration': conf.get('HAVE_CAIRO', 0) == 1,
      'Introspection': conf.get('HAVE_INTROSPECTION', 0) == 1,
      'Experimental APIs': conf.get('HB_EXPERIMENTAL_API', 0) == 1,
     },

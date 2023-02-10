@@ -75,25 +75,40 @@ struct shape_options_t
        * as guess_segment_properties doesn't like glyphs in the buffer. */
 
       setup_buffer (buffer);
-      char *glyphs = (char *) text;
+      char *glyphs_text = (char *) text;
       int glyphs_len = text_len;
       if (glyphs_len < 0)
-	glyphs_len = strlen (glyphs);
+	glyphs_len = strlen (glyphs_text);
 
-      if (glyphs_len && glyphs[glyphs_len - 1] != ']')
+      if (glyphs_len && glyphs_text[glyphs_len - 1] != ']')
       {
-	glyphs = g_strdup_printf ("%*s]", glyphs_len, glyphs);
+	glyphs_text = g_strdup_printf ("%*s]", glyphs_len, glyphs_text);
 	glyphs_len = -1;
       }
 
       hb_buffer_deserialize_glyphs (buffer,
-				    glyphs, glyphs_len,
+				    glyphs_text, glyphs_len,
 				    nullptr,
 				    font,
 				    HB_BUFFER_SERIALIZE_FORMAT_TEXT);
 
-      if (glyphs != text)
-        g_free (glyphs);
+      if (!strchr (glyphs_text, '+'))
+      {
+        scale_advances = false;
+        unsigned count;
+	hb_direction_t direction = hb_buffer_get_direction (buffer);
+	hb_glyph_info_t *infos = hb_buffer_get_glyph_infos (buffer, &count);
+	hb_glyph_position_t *positions = hb_buffer_get_glyph_positions (buffer, &count);
+	for (unsigned i = 0; i < count; i++)
+	  hb_font_get_glyph_advance_for_direction (font,
+						   infos[i].codepoint,
+						   direction,
+						   &positions[i].x_advance,
+						   &positions[i].y_advance);
+      }
+
+      if (glyphs_text != text)
+        g_free (glyphs_text);
 
       return;
     }
@@ -137,8 +152,11 @@ struct shape_options_t
 	auto &pos = positions[i];
 	pos.x_offset = pos.x_offset * x_scale / upem;
 	pos.y_offset = pos.y_offset * y_scale / upem;
-	pos.x_advance = pos.x_advance * x_scale / upem;
-	pos.y_advance = pos.y_advance * y_scale / upem;
+	if (scale_advances)
+	{
+	  pos.x_advance = pos.x_advance * x_scale / upem;
+	  pos.y_advance = pos.y_advance * y_scale / upem;
+	}
       }
     }
     else
@@ -190,6 +208,7 @@ struct shape_options_t
   hb_buffer_cluster_level_t cluster_level = HB_BUFFER_CLUSTER_LEVEL_DEFAULT;
   hb_bool_t normalize_glyphs = false;
   hb_bool_t glyphs = false;
+  bool scale_advances = true;
   hb_bool_t verify = false;
   hb_bool_t unsafe_to_concat = false;
   hb_bool_t safe_to_insert_tatweel = false;

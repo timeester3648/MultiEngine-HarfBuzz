@@ -1061,7 +1061,8 @@ hb_font_get_nominal_glyph (hb_font_t      *font,
  * @glyph_stride: The stride between successive glyph IDs
  *
  * Fetches the nominal glyph IDs for a sequence of Unicode code points. Glyph
- * IDs must be returned in a #hb_codepoint_t output parameter.
+ * IDs must be returned in a #hb_codepoint_t output parameter. Stopes at the
+ * first unsupported glyph ID.
  *
  * Return value: the number of code points processed
  *
@@ -1342,6 +1343,9 @@ hb_font_get_glyph_contour_point (hb_font_t      *font,
  * @size: Length of the glyph-name string retrieved
  *
  * Fetches the glyph-name string for a glyph ID in the specified @font.
+ *
+ * According to the OpenType specification, glyph names are limited to 63
+ * characters and can only contain (a subset of) ASCII.
  *
  * Return value: `true` if data found, `false` otherwise
  *
@@ -1711,6 +1715,9 @@ hb_font_get_glyph_contour_point_for_origin (hb_font_t      *font,
  *
  * If the glyph ID has no name in @font, a string of the form `gidDDD` is
  * generated, with `DDD` being the glyph ID.
+ *
+ * According to the OpenType specification, glyph names are limited to 63
+ * characters and can only contain (a subset of) ASCII.
  *
  * Since: 0.9.2
  **/

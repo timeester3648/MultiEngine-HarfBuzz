@@ -30,7 +30,6 @@
 
 #include "../../../hb.hh"
 #include "../../../hb-open-type.hh"
-#include "../../../hb-ot-layout-common.hh"
 #include "../../../hb-ot-var-common.hh"
 #include "../../../hb-paint.hh"
 #include "../../../hb-paint-extents.hh"
@@ -1968,7 +1967,7 @@ struct COLR
     colr_prime->layerList.serialize_subset (c, layerList, this);
     colr_prime->clipList.serialize_subset (c, clipList, this);
     colr_prime->varIdxMap.serialize_copy (c->serializer, varIdxMap, this);
-    //TODO: subset varStore once it's implemented in fonttools
+    colr_prime->varStore.serialize_copy (c->serializer, varStore, this);
     return_trace (true);
   }
 
@@ -2003,15 +2002,25 @@ struct COLR
 
     auto *extents_funcs = hb_paint_extents_get_funcs ();
     hb_paint_extents_context_t extents_data;
-    paint_glyph (font, glyph, extents_funcs, &extents_data, 0, HB_COLOR(0,0,0,0));
+    bool ret = paint_glyph (font, glyph, extents_funcs, &extents_data, 0, HB_COLOR(0,0,0,0));
 
     hb_extents_t e = extents_data.get_extents ();
-    extents->x_bearing = e.xmin;
-    extents->y_bearing = e.ymax;
-    extents->width = e.xmax - e.xmin;
-    extents->height = e.ymin - e.ymax;
+    if (e.is_void ())
+    {
+      extents->x_bearing = 0;
+      extents->y_bearing = 0;
+      extents->width = 0;
+      extents->height = 0;
+    }
+    else
+    {
+      extents->x_bearing = e.xmin;
+      extents->y_bearing = e.ymax;
+      extents->width = e.xmax - e.xmin;
+      extents->height = e.ymin - e.ymax;
+    }
 
-    return true;
+    return ret;
   }
 
   bool
