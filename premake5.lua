@@ -16,12 +16,14 @@ project "HarfBuzz"
 	}
 
 	includedirs {
+		"%{IncludeDir.icu}",
 		"%{IncludeDir.harfbuzz}",
 		"%{IncludeDir.freetype}"
 	}
 
 	defines {
-		"HAVE_FREETYPE"
+		"HAVE_ICU",
+		"HAVE_FREETYPE",
 	}
 
 	filter "toolset:msc"
