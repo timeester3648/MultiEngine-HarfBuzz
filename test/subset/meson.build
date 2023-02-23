@@ -52,10 +52,12 @@ tests = [
   '32bit_var_store',
   'pin_all_at_default',
   'instantiate_glyf',
+  'instantiate_cff2',
   'full_instance',
   'instance_feature_variations',
   'instance_no_double_free',
   'mvar_full_instance',
+  'instance_comp_glyph_empty_child',
 ]
 
 repack_tests = [

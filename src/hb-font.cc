@@ -1396,6 +1396,7 @@ hb_font_get_glyph_from_name (hb_font_t      *font,
  * objects, with @draw_data passed to them.
  *
  * Since: 4.0.0
+ * Deprecated: 7.0.0: Use hb_font_draw_glyph() instead
  */
 void
 hb_font_get_glyph_shape (hb_font_t *font,
@@ -1417,7 +1418,7 @@ hb_font_get_glyph_shape (hb_font_t *font,
  * The outline is returned by way of calls to the callbacks of the @dfuncs
  * objects, with @draw_data passed to them.
  *
- * Since: REPLACEME
+ * Since: 7.0.0
  **/
 void
 hb_font_draw_glyph (hb_font_t *font,
@@ -1446,7 +1447,7 @@ hb_font_draw_glyph (hb_font_t *font,
  * then @palette_index selects the palette to use. If the font only
  * has one palette, this will be 0.
  *
- * Since: REPLACEME
+ * Since: 7.0.0
  */
 void
 hb_font_paint_glyph (hb_font_t *font,
@@ -1772,8 +1773,13 @@ DEFINE_NULL_INSTANCE (hb_font_t) =
 
   1000, /* x_scale */
   1000, /* y_scale */
-  0., /* slant */
-  0., /* slant_xy; */
+  0.f, /* x_embolden */
+  0.f, /* y_embolden */
+  true, /* embolden_in_place */
+  0, /* x_strength */
+  0, /* y_strength */
+  0.f, /* slant */
+  0.f, /* slant_xy; */
   1.f, /* x_multf */
   1.f, /* y_multf */
   1<<16, /* x_mult */
@@ -1811,6 +1817,7 @@ _hb_font_create (hb_face_t *face)
   font->klass = hb_font_funcs_get_empty ();
   font->data.init0 (font);
   font->x_scale = font->y_scale = face->get_upem ();
+  font->embolden_in_place = true;
   font->x_multf = font->y_multf = 1.f;
   font->x_mult = font->y_mult = 1 << 16;
   font->instance_index = HB_FONT_NO_VAR_NAMED_INSTANCE;
@@ -1895,6 +1902,9 @@ hb_font_create_sub_font (hb_font_t *parent)
 
   font->x_scale = parent->x_scale;
   font->y_scale = parent->y_scale;
+  font->x_embolden = parent->x_embolden;
+  font->y_embolden = parent->y_embolden;
+  font->embolden_in_place = parent->embolden_in_place;
   font->slant = parent->slant;
   font->x_ppem = parent->x_ppem;
   font->y_ppem = parent->y_ppem;
@@ -2443,6 +2453,76 @@ hb_font_get_ptem (hb_font_t *font)
 }
 
 /**
+ * hb_font_set_synthetic_bold:
+ * @font: #hb_font_t to work upon
+ * @x_embolden: the amount to embolden horizontally
+ * @y_embolden: the amount to embolden vertically
+ * @in_place: whether to embolden glyphs in-place
+ *
+ * Sets the "synthetic boldness" of a font.
+ *
+ * Positive values for @x_embolden / @y_embolden make a font
+ * bolder, negative values thinner. Typical values are in the
+ * 0.01 to 0.05 range. The default value is zero.
+ *
+ * Synthetic boldness is applied by offsetting the contour
+ * points of the glyph shape.
+ *
+ * Synthetic boldness is applied when rendering a glyph via
+ * hb_font_draw_glyph().
+ *
+ * If @in_place is `false`, then glyph advance-widths are also
+ * adjusted, otherwise they are not.  The in-place mode is
+ * useful for simulating [font grading](https://fonts.google.com/knowledge/glossary/grade).
+ *
+ *
+ * Since: 7.0.0
+ **/
+void
+hb_font_set_synthetic_bold (hb_font_t *font,
+			    float x_embolden,
+			    float y_embolden,
+			    hb_bool_t in_place)
+{
+  if (hb_object_is_immutable (font))
+    return;
+
+  if (font->x_embolden == x_embolden &&
+      font->y_embolden == y_embolden &&
+      font->embolden_in_place == (bool) in_place)
+    return;
+
+  font->serial++;
+
+  font->x_embolden = x_embolden;
+  font->y_embolden = y_embolden;
+  font->embolden_in_place = in_place;
+  font->mults_changed ();
+}
+
+/**
+ * hb_font_get_synthetic_bold:
+ * @font: #hb_font_t to work upon
+ * @x_embolden: (out): return location for horizontal value
+ * @y_embolden: (out): return location for vertical value
+ * @in_place: (out): return location for in-place value
+ *
+ * Fetches the "synthetic boldness" parameters of a font.
+ *
+ * Since: 7.0.0
+ **/
+void
+hb_font_get_synthetic_bold (hb_font_t *font,
+			    float *x_embolden,
+			    float *y_embolden,
+			    hb_bool_t *in_place)
+{
+  if (x_embolden) *x_embolden = font->x_embolden;
+  if (y_embolden) *y_embolden = font->y_embolden;
+  if (in_place) *in_place = font->embolden_in_place;
+}
+
+/**
  * hb_font_set_synthetic_slant:
  * @font: #hb_font_t to work upon
  * @slant: synthetic slant value.
@@ -2644,7 +2724,7 @@ hb_font_set_var_named_instance (hb_font_t *font,
  *
  * Return value: Named-instance index or %HB_FONT_NO_VAR_NAMED_INSTANCE.
  *
- * Since: REPLACEME
+ * Since: 7.0.0
  **/
 unsigned int
 hb_font_get_var_named_instance (hb_font_t *font)

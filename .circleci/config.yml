@@ -18,9 +18,9 @@ jobs:
       xcode: "12.5.1"
     steps:
       - checkout
-      - run: HOMEBREW_NO_AUTO_UPDATE=1 brew install pkg-config ragel freetype glib cairo python3 icu4c graphite2 gobject-introspection gtk-doc ninja
+      - run: HOMEBREW_NO_AUTO_UPDATE=1 brew install pkg-config ragel freetype glib cairo python3 icu4c graphite2 gobject-introspection ninja
       - run: pip3 install meson --upgrade
-      - run: PKG_CONFIG_PATH="/usr/local/opt/icu4c/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig" meson setup build -Dcoretext=enabled -Dgraphite=enabled -Dauto_features=enabled -Dchafa=disabled
+      - run: PKG_CONFIG_PATH="/usr/local/opt/icu4c/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig" meson setup build -Dcoretext=enabled -Dgraphite=enabled -Dauto_features=enabled -Dchafa=disabled -Ddocs=disabled
       - run: meson compile -Cbuild
       - run: meson test -Cbuild --print-errorlogs
       - store_artifacts:
@@ -123,7 +123,7 @@ jobs:
     executor: win32-executor
     steps:
       - checkout
-      - run: sudo apt update && DEBIAN_FRONTEND=noninteractive sudo apt install -y ninja-build gtk-doc-tools python3 python3-pip git g++-mingw-w64-i686 zip
+      - run: sudo apt update && DEBIAN_FRONTEND=noninteractive sudo apt install -y ninja-build python3 python3-pip git g++-mingw-w64-i686 zip
       - run: pip3 install meson==0.60.0
       - run: .ci/build-win32.sh
       - store_artifacts:
@@ -146,7 +146,7 @@ jobs:
     executor: win64-executor
     steps:
       - checkout
-      - run: sudo apt update && DEBIAN_FRONTEND=noninteractive sudo apt install -y ninja-build gtk-doc-tools python3 python3-pip git g++-mingw-w64-x86-64 zip
+      - run: sudo apt update && DEBIAN_FRONTEND=noninteractive sudo apt install -y ninja-build python3 python3-pip git g++-mingw-w64-x86-64 zip
       - run: pip3 install meson==0.60.0
       - run: bash .ci/build-win64.sh
       - store_artifacts:

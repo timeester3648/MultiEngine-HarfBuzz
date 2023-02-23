@@ -1,5 +1,5 @@
 /*
- * Copyright © 2012  Google, Inc.
+ * Copyright © 2023  Behdad Esfahbod
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -20,41 +20,64 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
- *
- * Google Author(s): Behdad Esfahbod
  */
 
-#ifndef HB_SHAPER_LIST_HH
-#define HB_SHAPER_LIST_HH
-#endif /* HB_SHAPER_LIST_HH */ /* Dummy header guards */
+#ifndef HB_OUTLINE_HH
+#define HB_OUTLINE_HH
 
-#ifndef HB_NO_SHAPER
+#include "hb.hh"
 
-
-/* v--- Add new shapers in the right place here. */
-
-#ifdef HAVE_GRAPHITE2
-/* Only picks up fonts that have a "Silf" table. */
-HB_SHAPER_IMPLEMENT (graphite2)
-#endif
-
-#ifndef HB_NO_OT_SHAPE
-HB_SHAPER_IMPLEMENT (ot) /* <--- This is our main shaper. */
-#endif
-
-#ifdef HAVE_UNISCRIBE
-HB_SHAPER_IMPLEMENT (uniscribe)
-#endif
-#ifdef HAVE_DIRECTWRITE
-HB_SHAPER_IMPLEMENT (directwrite)
-#endif
-#ifdef HAVE_CORETEXT
-HB_SHAPER_IMPLEMENT (coretext)
-#endif
-
-#ifndef HB_NO_FALLBACK_SHAPE
-HB_SHAPER_IMPLEMENT (fallback) /* <--- This should be last. */
-#endif
+#include "hb-draw.hh"
 
 
-#endif
+struct hb_outline_point_t
+{
+  enum class type_t
+  {
+    MOVE_TO,
+    LINE_TO,
+    QUADRATIC_TO,
+    CUBIC_TO,
+  };
+
+  hb_outline_point_t (float x, float y, type_t type) :
+    x (x), y (y), type (type) {}
+
+  float x, y;
+  type_t type;
+};
+
+struct hb_outline_vector_t
+{
+  float normalize_len ()
+  {
+    float len = hypotf (x, y);
+    if (len)
+    {
+      x /= len;
+      y /= len;
+    }
+    return len;
+  }
+
+  float x, y;
+};
+
+struct hb_outline_t
+{
+  void reset () { points.shrink (0, false); contours.resize (0); }
+
+  HB_INTERNAL void replay (hb_draw_funcs_t *pen, void *pen_data) const;
+  HB_INTERNAL float area () const;
+  HB_INTERNAL void embolden (float x_strength, float y_strength,
+			     float x_shift, float y_shift);
+
+  hb_vector_t<hb_outline_point_t> points;
+  hb_vector_t<unsigned> contours;
+};
+
+HB_INTERNAL hb_draw_funcs_t *
+hb_outline_recording_pen_get_funcs ();
+
+
+#endif /* HB_OUTLINE_HH */
