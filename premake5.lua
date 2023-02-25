@@ -24,6 +24,7 @@ project "HarfBuzz"
 	defines {
 		"HAVE_ICU",
 		"HAVE_FREETYPE",
+		"HAVE_FT_GET_VAR_BLEND_COORDINATES"
 	}
 
 	filter "toolset:msc"
