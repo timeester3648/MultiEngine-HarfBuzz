@@ -12,6 +12,7 @@ project "HarfBuzz"
 		"./src/**.h",
 		"./src/**.hh",
 
+		"./src/hb-icu.cc",
 		"./src/harfbuzz.cc"
 	}
 
@@ -28,4 +29,4 @@ project "HarfBuzz"
 	}
 
 	filter "toolset:msc"
-		disablewarnings { "4805" }
+		disablewarnings { "4805", "4267", "4244" }
