@@ -50,6 +50,7 @@ tests = [
   'cbdt',
   'variable',
   'glyph_names',
+  'glyph_map',
   'post',
   '32bit_var_store',
   'pin_all_at_default',
@@ -66,6 +67,14 @@ tests = [
   'instantiate_colrv1',
   'instantiate_cff2_update_metrics',
 ]
+
+if get_option('experimental_api')
+  tests += [
+    'glyf_partial_instancing',
+    'mvar_partial_instance',
+    'update_def_wght',
+    ]
+endif
 
 repack_tests = [
   'basic',

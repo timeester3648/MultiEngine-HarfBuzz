@@ -65,6 +65,8 @@
 #include "hb-ucd.cc"
 #include "hb-unicode.cc"
 #include "hb-uniscribe.cc"
+#include "hb-wasm-api.cc"
+#include "hb-wasm-shape.cc"
 
 #ifdef MLE_PLATFORM_WINDOWS
   #undef _CRT_SECURE_NO_WARNINGS
