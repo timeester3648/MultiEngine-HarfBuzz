@@ -29,4 +29,4 @@ project "HarfBuzz"
 	}
 
 	filter "toolset:msc"
-		disablewarnings { "4805", "4267", "4244" }
+		disablewarnings { "4805", "4267", "4244", "4996" }
