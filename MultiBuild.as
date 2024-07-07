@@ -2,9 +2,9 @@ void main(MultiBuild::Workspace& workspace) {
 	auto project = workspace.create_project(".");
 	auto properties = project.properties();
 
-	properties.name("HarfBuzz");
+	project.name("HarfBuzz");
 	properties.binary_object_kind(MultiBuild::BinaryObjectKind::eStaticLib);
-	properties.license("./COPYING");
+	project.license("./COPYING");
 
 	properties.project_includes({
 		"icu",
