@@ -5,6 +5,7 @@ void main(MultiBuild::Workspace& workspace) {
 	project.name("HarfBuzz");
 	properties.binary_object_kind(MultiBuild::BinaryObjectKind::eStaticLib);
 	project.license("./COPYING");
+	properties.tags({ "use_header_only_mle", "utf8" });
 
 	properties.project_includes({
 		"icu",
@@ -16,17 +17,22 @@ void main(MultiBuild::Workspace& workspace) {
 		"./src"
 	});
 
+	properties.include_directories("./config");
+
 	properties.files({
 		"./src/**.h",
 		"./src/**.hh",
 
 		"./src/hb-icu.cc",
-		"./src/harfbuzz.cc"
+		"./src/harfbuzz.cc",
+
+		"./config/config.cc"
 	});
 
 	properties.defines({
 		"HAVE_ICU",
 		"HAVE_FREETYPE",
+		"HAVE_CONFIG_H",
 		"HAVE_FT_GET_VAR_BLEND_COORDINATES"
 	});
 
