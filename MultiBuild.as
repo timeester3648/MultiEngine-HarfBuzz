@@ -7,10 +7,7 @@ void main(MultiBuild::Workspace& workspace) {
 	project.license("./COPYING");
 	properties.tags({ "use_header_only_mle", "utf8" });
 
-	properties.project_includes({
-		"icu",
-		"FreeType"
-	});
+	properties.project_includes("FreeType");
 
 	project.include_own_required_includes(true);
 	project.add_required_project_include({
@@ -23,14 +20,12 @@ void main(MultiBuild::Workspace& workspace) {
 		"./src/**.h",
 		"./src/**.hh",
 
-		"./src/hb-icu.cc",
 		"./src/harfbuzz.cc",
 
 		"./config/config.cc"
 	});
 
 	properties.defines({
-		"HAVE_ICU",
 		"HAVE_FREETYPE",
 		"HAVE_CONFIG_H",
 		"HAVE_FT_GET_VAR_BLEND_COORDINATES"
