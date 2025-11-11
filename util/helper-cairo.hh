@@ -46,8 +46,7 @@
 #endif
 #ifdef CAIRO_HAS_PS_SURFACE
 #  include <cairo-ps.h>
-#  if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1,6,0)
-#    define HAS_EPS 1
+#  define HAS_EPS 1
 
 static cairo_surface_t *
 _cairo_eps_surface_create_for_stream (cairo_write_func_t  write_func,
@@ -63,9 +62,6 @@ _cairo_eps_surface_create_for_stream (cairo_write_func_t  write_func,
   return surface;
 }
 
-#  else
-#    undef HAS_EPS
-#  endif
 #endif
 #ifdef CAIRO_HAS_SCRIPT_SURFACE
 #   include <cairo-script.h>
@@ -156,6 +152,18 @@ helper_cairo_create_scaled_font (const font_options_t *font_opts,
 							       &font_matrix,
 							       &ctm,
 							       font_options);
+  if (cairo_scaled_font_status (scaled_font) == CAIRO_STATUS_INVALID_MATRIX)
+  {
+    // Set font matrix to 0, which *does* work with cairo_scaled_font_create()
+    font_matrix.xx = font_matrix.yy = 0;
+    font_matrix.xy = font_matrix.yx = 0;
+    font_matrix.x0 = font_matrix.y0 = 0;
+    scaled_font = cairo_scaled_font_create (cairo_face,
+					    &font_matrix,
+					    &ctm,
+					    font_options);
+
+  }
 
   cairo_font_options_destroy (font_options);
   cairo_font_face_destroy (cairo_face);
