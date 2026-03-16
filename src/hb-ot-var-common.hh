@@ -119,8 +119,6 @@ struct TupleVariationHeader
     const F2DOT14 *peak_tuple;
 
     bool has_interm = tuple_index & TupleIndex::IntermediateRegion; // Inlined for performance
-    if (unlikely (has_interm))
-      shared_tuple_scalar_cache = nullptr;
 
     if (unlikely (tuple_index & TupleIndex::EmbeddedPeakTuple)) // Inlined for performance
     {
@@ -134,7 +132,12 @@ struct TupleVariationHeader
       float scalar;
       if (shared_tuple_scalar_cache &&
 	  shared_tuple_scalar_cache->get (index, &scalar))
-	return (double) scalar;
+      {
+        if (has_interm && (scalar != 0 && scalar != 1.f))
+	  shared_tuple_scalar_cache = nullptr;
+	else
+	  return (double) scalar;
+      }
 
       if (unlikely ((index + 1) * coord_count > shared_tuples.length))
         return 0.0;
@@ -152,8 +155,27 @@ struct TupleVariationHeader
     }
 
     double scalar = 1.0;
+#ifndef HB_OPTIMIZE_SIZE
+#if HB_FAST_NUM_ACCESS
+    bool skip = coord_count >= 16;
+#endif
+#endif
     for (unsigned int i = 0; i < coord_count; i++)
     {
+#ifndef HB_OPTIMIZE_SIZE
+#if HB_FAST_NUM_ACCESS
+      if (skip)
+      {
+	while (i + 4 <= coord_count && * (HBUINT64LE *) &peak_tuple[i] == 0)
+	  i += 4;
+	while (i < coord_count && peak_tuple[i].to_int () == 0)
+	  i += 1;
+	if (i >= coord_count)
+	  break;
+      }
+#endif
+#endif
+
       int peak = peak_tuple[i].to_int ();
       if (!peak) continue;
 
@@ -163,6 +185,7 @@ struct TupleVariationHeader
 
       if (has_interm)
       {
+	shared_tuple_scalar_cache = nullptr;
         int start = start_tuple[i].to_int ();
         int end = end_tuple[i].to_int ();
         if (unlikely (start > peak || peak > end ||
@@ -297,13 +320,13 @@ struct tuple_delta_t
   void copy_from (const tuple_delta_t& o, hb_alloc_pool_t *pool = nullptr)
   {
     axis_tuples = o.axis_tuples;
-    indices.allocate_from_pool (pool, o.indices);
-    deltas_x.allocate_from_pool (pool, o.deltas_x);
-    deltas_y.allocate_from_pool (pool, o.deltas_y);
-    compiled_tuple_header.allocate_from_pool (pool, o.compiled_tuple_header);
-    compiled_deltas.allocate_from_pool (pool, o.compiled_deltas);
-    compiled_peak_coords.allocate_from_pool (pool, o.compiled_peak_coords);
-    compiled_interm_coords.allocate_from_pool (pool, o.compiled_interm_coords);
+    indices.duplicate_vector_from_pool (pool, o.indices);
+    deltas_x.duplicate_vector_from_pool (pool, o.deltas_x);
+    deltas_y.duplicate_vector_from_pool (pool, o.deltas_y);
+    compiled_tuple_header.duplicate_vector_from_pool (pool, o.compiled_tuple_header);
+    compiled_deltas.duplicate_vector_from_pool (pool, o.compiled_deltas);
+    compiled_peak_coords.duplicate_vector_from_pool (pool, o.compiled_peak_coords);
+    compiled_interm_coords.duplicate_vector_from_pool (pool, o.compiled_interm_coords);
   }
 
   void remove_axis (hb_tag_t axis_tag)
@@ -385,6 +408,13 @@ struct tuple_delta_t
       out.push (std::move (*this));
       return;
     }
+
+    if (!axis_limit.is_point () &&
+        !(-1.0 <= axis_limit.minimum &&
+          axis_limit.minimum <= axis_limit.middle &&
+          axis_limit.middle <= axis_limit.maximum &&
+          axis_limit.maximum <= +1.0))
+      return;
 
     rebase_tent_result_t &solutions = scratch.first;
     rebase_tent (*tent, axis_limit, axis_triple_distances, solutions, scratch.second);
@@ -1677,6 +1707,16 @@ struct item_variations_t
   const hb_map_t& get_varidx_map () const
   { return varidx_map; }
 
+  bool add_vardata_encoding_for_testing (hb_vector_t<const hb_vector_t<int>*> &&rows,
+                                         unsigned num_cols)
+  {
+    encodings.push (delta_row_encoding_t (std::move (rows), num_cols));
+    return !encodings.in_error ();
+  }
+
+  bool compile_varidx_map_for_testing (const hb_hashmap_t<unsigned, const hb_vector_t<int>*>& front_mapping)
+  { return compile_varidx_map (front_mapping); }
+
   bool instantiate (const ItemVariationStore& varStore,
                     const hb_subset_plan_t *plan,
                     bool optimize=true,
@@ -2023,26 +2063,45 @@ struct item_variations_t
   {
     /* full encoding_row -> new VarIdxes mapping */
     hb_hashmap_t<const hb_vector_t<int>*, unsigned> back_mapping;
+    hb_vector_t<delta_row_encoding_t> split_encodings;
 
-    for (unsigned major = 0; major < encodings.length; major++)
+    for (unsigned i = 0; i < encodings.length; i++)
     {
-      delta_row_encoding_t& encoding = encodings[major];
+      delta_row_encoding_t& encoding = encodings[i];
       /* just sanity check, this shouldn't happen */
       if (encoding.is_empty ())
         return false;
 
       unsigned num_rows = encoding.items.length;
+      unsigned num_cols = encoding.chars.length;
 
       /* sort rows, make result deterministic */
       encoding.items.qsort (_cmp_row);
 
-      /* compile old to new var_idxes mapping */
-      for (unsigned minor = 0; minor < num_rows; minor++)
+      for (unsigned start = 0; start < num_rows; start += 0xFFFFu)
       {
-        unsigned new_varidx = (major << 16) + minor;
-        back_mapping.set (encoding.items.arrayZ[minor], new_varidx);
+        unsigned chunk_len = hb_min (num_rows - start, 0xFFFFu);
+        hb_vector_t<const hb_vector_t<int>*> rows;
+
+        if (!rows.alloc (chunk_len))
+          return false;
+
+        unsigned major = split_encodings.length;
+        for (unsigned minor = 0; minor < chunk_len; minor++)
+        {
+          const hb_vector_t<int> *row = encoding.items.arrayZ[start + minor];
+          rows.push (row);
+          if (!back_mapping.set (row, (major << 16) + minor))
+            return false;
+        }
+
+        split_encodings.push (delta_row_encoding_t (std::move (rows), num_cols));
       }
     }
+
+    encodings = std::move (split_encodings);
+    if (encodings.in_error () || back_mapping.in_error ())
+      return false;
 
     for (auto _ : front_mapping.iter ())
     {

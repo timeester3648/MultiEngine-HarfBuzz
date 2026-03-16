@@ -62,6 +62,7 @@ tests = [
   'instantiate_colrv1',
   'instantiate_glyf',
   'instantiate_cff2',
+  'downgrade_cff2',
   'instantiate_cff2_tsb',
   'full_instance',
   'instance_feature_variations',
@@ -84,6 +85,8 @@ tests = [
   'empty_region_vardata',
   'colrv1_partial_instance',
   'instantiate_gvar_padding',
+  'avar2_full_instance',
+  'subset_gvar_padding',
 ]
 
 if get_option('experimental_api')
