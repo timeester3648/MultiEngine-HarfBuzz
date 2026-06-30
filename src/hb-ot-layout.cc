@@ -2072,21 +2072,25 @@ inline void hb_ot_map_t::apply (const Proxy &proxy,
 void hb_ot_map_t::substitute (const hb_ot_shape_plan_t *plan, hb_font_t *font, hb_buffer_t *buffer) const
 {
   GSUBProxy proxy (font->face);
+  char tag[5] = {0};
+  hb_tag_to_string (chosen_script[0], tag);
   if (buffer->messaging () &&
-      !buffer->message (font, "start table GSUB script tag '%c%c%c%c'", HB_UNTAG (chosen_script[0]))) return;
+      !buffer->message (font, "start table GSUB script tag '%s'", tag)) return;
   apply (proxy, plan, font, buffer);
   if (buffer->messaging ())
-    (void) buffer->message (font, "end table GSUB script tag '%c%c%c%c'", HB_UNTAG (chosen_script[0]));
+    (void) buffer->message (font, "end table GSUB script tag '%s'", tag);
 }
 
 void hb_ot_map_t::position (const hb_ot_shape_plan_t *plan, hb_font_t *font, hb_buffer_t *buffer) const
 {
   GPOSProxy proxy (font->face);
+  char tag[5] = {0};
+  hb_tag_to_string (chosen_script[0], tag);
   if (buffer->messaging () &&
-      !buffer->message (font, "start table GPOS script tag '%c%c%c%c'", HB_UNTAG (chosen_script[1]))) return;
+      !buffer->message (font, "start table GPOS script tag '%s'", tag)) return;
   apply (proxy, plan, font, buffer);
   if (buffer->messaging ())
-    (void) buffer->message (font, "end table GPOS script tag '%c%c%c%c'", HB_UNTAG (chosen_script[1]));
+    (void) buffer->message (font, "end table GPOS script tag '%s'", tag);
 }
 
 void
@@ -2284,7 +2288,7 @@ hb_ot_layout_get_horizontal_baseline_tag_for_script (hb_script_t script)
  * @language_tag: language tag, currently unused.
  * @coord: (out) (nullable): baseline value if found.
  *
- * Fetches a baseline value from the face.
+ * Fetches a baseline value from the font.
  *
  * Return value: `true` if found baseline value in the font.
  *
@@ -2310,7 +2314,7 @@ hb_ot_layout_get_baseline (hb_font_t                   *font,
  * @language: (nullable): language, currently unused.
  * @coord: (out) (nullable): baseline value if found.
  *
- * Fetches a baseline value from the face.
+ * Fetches a baseline value from the font.
  *
  * This function is like hb_ot_layout_get_baseline() but takes
  * #hb_script_t and #hb_language_t instead of OpenType #hb_tag_t.
@@ -2346,7 +2350,7 @@ hb_ot_layout_get_baseline2 (hb_font_t                   *font,
  * @language_tag: language tag, currently unused.
  * @coord: (out): baseline value if found.
  *
- * Fetches a baseline value from the face, and synthesizes
+ * Fetches a baseline value from the font, and synthesizes
  * it if the font does not have it.
  *
  * Since: 4.0.0
@@ -2568,7 +2572,7 @@ hb_ot_layout_get_baseline_with_fallback (hb_font_t                   *font,
  * @language: (nullable): language, currently unused.
  * @coord: (out): baseline value if found.
  *
- * Fetches a baseline value from the face, and synthesizes
+ * Fetches a baseline value from the font, and synthesizes
  * it if the font does not have it.
  *
  * This function is like hb_ot_layout_get_baseline_with_fallback() but takes

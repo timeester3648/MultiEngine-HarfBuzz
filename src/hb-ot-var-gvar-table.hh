@@ -447,7 +447,7 @@ struct gvar_GVAR
     auto it = hb_iter (c->plan->new_to_old_gid_list);
     if (it->first == 0 && !(c->plan->flags & HB_SUBSET_FLAGS_NOTDEF_OUTLINE))
       it++;
-    unsigned int subset_data_size = 0;
+    unsigned subset_data_size = 0;
     unsigned padding_size = 0;
     for (auto &_ : it)
     {
@@ -459,7 +459,8 @@ struct gvar_GVAR
         padding_size++;
       }
 
-      subset_data_size += glyph_data_size;
+      if (unlikely (hb_unsigned_add_overflows (subset_data_size, glyph_data_size, &subset_data_size)))
+	return_trace (false);
     }
 
     /* According to the spec: If the short format (Offset16) is used for offsets,
@@ -588,7 +589,8 @@ struct gvar_GVAR
 
     hb_scalar_cache_t *create_cache () const
     {
-      return hb_scalar_cache_t::create (table->sharedTupleCount);
+      return hb_scalar_cache_t::create (hb_min ((unsigned) table->sharedTupleCount,
+						+TupleVariationHeader::max_shared_tuple_count));
     }
 
     static void destroy_cache (hb_scalar_cache_t *cache)
@@ -720,6 +722,9 @@ struct gvar_GVAR
 				 bool phantom_only = false) const
     {
       if (unlikely (glyph >= glyphCount)) return true;
+      hb_scalar_cache_t *scalar_cache = gvar_cache ?
+					gvar_cache :
+					(hb_scalar_cache_t *) &Null(hb_scalar_cache_t);
 
       hb_bytes_t var_data_bytes = table->get_glyph_var_data_bytes (table.get_blob (), glyphCount, glyph);
       if (!var_data_bytes.as<GlyphVariationData> ()->has_data ()) return true;
@@ -759,7 +764,7 @@ struct gvar_GVAR
       do
       {
 	float scalar = iterator.current_tuple->calculate_scalar (coords, num_coords, shared_tuples,
-								 gvar_cache);
+								 scalar_cache);
 
 	if (scalar == 0.f) continue;
 

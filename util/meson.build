@@ -28,7 +28,7 @@ hb_subset_cli_sources = [
 
 # If found, invoke it on our four binaries to build man pages
 # If not found, just skip this step
-if not get_option('docs').disabled()
+if not get_option('docs').disabled() and not meson.is_cross_build()
   help2man = find_program('help2man', required: false)
 else
   help2man = disabler()
@@ -212,4 +212,37 @@ else
   hb_vector = disabler()
   hb_info = disabler()
   hb_subset = disabler()
+endif
+
+if not get_option('gpu').disabled()
+  if host_machine.system() == 'darwin'
+    add_languages('objcpp', required: true)
+  endif
+  subdir('gpu')
+
+  if have_gpu_demo_deps and conf.get('HAVE_GLIB', 0) == 1
+    gpu_demo_deps = [util_deps, gl_dep, glew_dep, glfw_dep]
+    if host_machine.system() == 'darwin'
+      gpu_demo_deps += metal_dep
+    endif
+    if host_machine.system() == 'windows' and d3d11_dep.found() and d3dcompiler_dep.found()
+      gpu_demo_deps += [d3d11_dep, d3dcompiler_dep]
+    endif
+    hb_gpu_util = executable('hb-gpu',
+      ['hb-gpu.cc'] + gpu_demo_sources,
+      cpp_args: cpp_args,
+      include_directories: [incconfig, incsrc],
+      dependencies: gpu_demo_deps,
+      link_with: [libharfbuzz, libharfbuzz_gpu],
+      install: true,
+    )
+  endif
+
+  hb_gpu_encode_all = executable('hb-gpu-encode-all',
+    'hb-gpu-encode-all.cc',
+    cpp_args: cpp_args,
+    include_directories: [incconfig, incsrc],
+    link_with: [libharfbuzz, libharfbuzz_gpu],
+    install: false,
+  )
 endif

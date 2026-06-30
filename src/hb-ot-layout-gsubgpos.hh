@@ -577,9 +577,6 @@ struct skipping_iterator_t
     return SKIP;
   }
 
-#ifndef HB_OPTIMIZE_SIZE
-  HB_ALWAYS_INLINE
-#endif
   bool next (unsigned *unsafe_to = nullptr)
   {
     auto *info = c->buffer->info;
@@ -608,9 +605,6 @@ struct skipping_iterator_t
       *unsafe_to = end;
     return false;
   }
-#ifndef HB_OPTIMIZE_SIZE
-  HB_ALWAYS_INLINE
-#endif
   bool prev (unsigned *unsafe_from = nullptr)
   {
     auto *out_info = c->buffer->out_info;
@@ -851,7 +845,11 @@ struct hb_ot_apply_context_t :
      * match_props has the set index.
      */
     if (match_props & LookupFlag::UseMarkFilteringSet)
-      return gdef_accel.mark_set_covers (match_props >> 16, info->codepoint);
+    {
+      unsigned set_index = match_props >> 16;
+      return gdef_accel.mark_set_may_cover (set_index, info->codepoint) &&
+	     gdef.mark_set_covers (set_index, info->codepoint);
+    }
 
     /* The second byte of match_props has the meaning
      * "ignore marks of attachment type different than
@@ -1865,22 +1863,24 @@ static inline void apply_lookup (hb_ot_apply_context_t *c,
       if (buffer->have_output)
         c->buffer->sync_so_far ();
       c->buffer->message (c->font,
-			  "recursing to lookup %u at %u",
+			  "start recursing to lookup %u at %u",
 			  (unsigned) lookupRecord[i].lookupListIndex,
 			  buffer->idx);
     }
 
-    if (!c->recurse (lookupRecord[i].lookupListIndex))
-      continue;
+    bool ret = c->recurse (lookupRecord[i].lookupListIndex);
 
     if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
     {
       if (buffer->have_output)
         c->buffer->sync_so_far ();
       c->buffer->message (c->font,
-			  "recursed to lookup %u",
+			  "end recursing to lookup %u",
 			  (unsigned) lookupRecord[i].lookupListIndex);
     }
+
+    if (!ret)
+      continue;
 
     unsigned int new_len = buffer->backtrack_len () + buffer->lookahead_len ();
     int delta = new_len - orig_len;
@@ -4642,7 +4642,7 @@ struct GSUBGPOSVersion1_2
   public:
   DEFINE_SIZE_MIN (4 + 3 * Types::size);
 
-  unsigned int get_size () const
+  size_t get_size () const
   {
     return min_size +
 	   (version.to_int () >= 0x00010001u ? featureVars.static_size : 0);
@@ -4724,7 +4724,7 @@ struct GSUBGPOSVersion1_2
 
 struct GSUBGPOS
 {
-  unsigned int get_size () const
+  size_t get_size () const
   {
     switch (u.version.major) {
     case 1: hb_barrier (); return u.version1.get_size ();

@@ -273,6 +273,7 @@ hb_base_sources = files(
   'hb-unicode.hh',
   'hb-utf.hh',
   'hb-vector.hh',
+  'hb-vector-draw.hh',
   'hb.hh',
 )
 
@@ -395,7 +396,6 @@ hb_subset_sources = files(
   'hb-subset-cff-common.hh',
   'hb-subset-cff1.cc',
   'hb-subset-cff2.cc',
-  'hb-subset-cff2-to-cff1.cc',
   'hb-subset-cff2-to-cff1.hh',
   'hb-subset-input.cc',
   'hb-subset-input.hh',
@@ -475,6 +475,7 @@ custom_target('harfbuzz.cc',
   command: [find_program('gen-harfbuzzcc.py'),
             '@OUTPUT@', meson.current_source_dir(), '@INPUT@'],
 )
+
 
 incsrc = include_directories('.')
 
@@ -591,6 +592,7 @@ features = [
   'UNISCRIBE',
   'VECTOR',
   'WASM',
+  'GPU',
 ]
 
 hb_enabled_features = configuration_data()
@@ -706,60 +708,33 @@ if not get_option('subset').disabled()
   meson.override_dependency('harfbuzz-subset', libharfbuzz_subset_dep)
 endif
 
-hb_raster_sources = [
-  'hb-zlib.cc',
-  'hb-zlib.hh',
-  'hb-raster.cc',
+hb_raster_sources = files(
   'hb-raster-image.cc',
   'hb-raster-image.hh',
-  'hb-raster-utils.hh',
+  'hb-raster.hh',
   'hb-raster-draw.cc',
-  'hb-raster-svg-base.cc',
-  'hb-raster-svg-base.hh',
-  'hb-raster-svg-defs.cc',
-  'hb-raster-svg-defs.hh',
-  'hb-raster-svg-defs-scan.cc',
-  'hb-raster-svg-defs-scan.hh',
-  'hb-raster-svg-gradient.cc',
-  'hb-raster-svg-gradient.hh',
-  'hb-raster-svg-clip.cc',
-  'hb-raster-svg-clip.hh',
-  'hb-raster-svg-bbox.cc',
-  'hb-raster-svg-bbox.hh',
-  'hb-raster-svg-fill.cc',
-  'hb-raster-svg-fill.hh',
-  'hb-raster-svg-context.hh',
-  'hb-raster-svg-use.cc',
-  'hb-raster-svg-use.hh',
-  'hb-raster-svg-render.cc',
-  'hb-raster-svg-color.cc',
-  'hb-raster-svg-color.hh',
-  'hb-raster-svg-parse.cc',
-  'hb-raster-svg-parse.hh',
   'hb-raster-paint.cc',
   'hb-raster-paint.hh',
-  'hb-raster-svg.hh',
   'hb-static.cc',
-]
+)
 
 hb_raster_headers = [
   'hb-raster.h',
 ]
 
-hb_vector_sources = [
+hb_vector_sources = files(
   'hb-zlib.cc',
   'hb-zlib.hh',
   'hb-vector.cc',
-  'hb-vector-svg-draw.cc',
-  'hb-vector-svg-path.cc',
-  'hb-vector-svg-paint.cc',
-  'hb-vector-svg-path.hh',
-  'hb-vector-svg-subset.cc',
-  'hb-vector-svg-subset.hh',
-  'hb-vector-svg-utils.cc',
-  'hb-vector-svg-utils.hh',
+  'hb-vector-draw.cc',
+  'hb-vector-path.cc',
+  'hb-vector-paint.cc',
+  'hb-vector-paint-svg.cc',
+  'hb-vector-paint-pdf.cc',
+  'hb-vector-path.hh',
+  'hb-vector-buf.hh',
   'hb-static.cc',
-]
+)
 
 hb_vector_headers = [
   'hb-vector.h',
@@ -770,9 +745,6 @@ if not get_option('raster').disabled()
   raster_deps = [m_dep]
   if png_dep.found()
     raster_deps += [png_dep]
-  endif
-  if zlib_dep.found()
-    raster_deps += [zlib_dep]
   endif
 
   libharfbuzz_raster = library('harfbuzz-raster', hb_raster_sources,
@@ -850,18 +822,98 @@ if not get_option('vector').disabled()
   )
 endif
 
+hb_gpu_shader_sources = [
+  [ 'hb-gpu-fragment.glsl',      'hb-gpu-fragment-glsl.hh' ],
+  [ 'hb-gpu-vertex.glsl',        'hb-gpu-vertex-glsl.hh' ],
+  [ 'hb-gpu-fragment.wgsl',      'hb-gpu-fragment-wgsl.hh' ],
+  [ 'hb-gpu-vertex.wgsl',        'hb-gpu-vertex-wgsl.hh' ],
+  [ 'hb-gpu-fragment.msl',       'hb-gpu-fragment-msl.hh' ],
+  [ 'hb-gpu-vertex.msl',         'hb-gpu-vertex-msl.hh' ],
+  [ 'hb-gpu-fragment.hlsl',      'hb-gpu-fragment-hlsl.hh' ],
+  [ 'hb-gpu-vertex.hlsl',        'hb-gpu-vertex-hlsl.hh' ],
+  [ 'hb-gpu-draw-fragment.glsl', 'hb-gpu-draw-fragment-glsl.hh' ],
+  [ 'hb-gpu-draw-fragment.wgsl', 'hb-gpu-draw-fragment-wgsl.hh' ],
+  [ 'hb-gpu-draw-fragment.msl',  'hb-gpu-draw-fragment-msl.hh' ],
+  [ 'hb-gpu-draw-fragment.hlsl', 'hb-gpu-draw-fragment-hlsl.hh' ],
+  [ 'hb-gpu-paint-fragment.glsl', 'hb-gpu-paint-fragment-glsl.hh' ],
+  [ 'hb-gpu-paint-fragment.msl',  'hb-gpu-paint-fragment-msl.hh' ],
+  [ 'hb-gpu-paint-fragment.wgsl', 'hb-gpu-paint-fragment-wgsl.hh' ],
+  [ 'hb-gpu-paint-fragment.hlsl', 'hb-gpu-paint-fragment-hlsl.hh' ],
+]
+
+hb_gpu_shader_helper = find_program('gen-gpu-shader-artifacts.py')
+foreach p: hb_gpu_shader_sources
+  custom_target('@0@'.format(p.get(1)),
+    build_by_default: true,
+    input: p.get(0),
+    output: p.get(1),
+    command: [ hb_gpu_shader_helper, '@OUTPUT@',
+	       meson.current_source_dir(), '@INPUT@' ])
+endforeach
+
+hb_gpu_sources = files(
+  'hb-gpu.cc',
+  'hb-gpu-draw.cc',
+  'hb-gpu-paint.cc',
+  'hb-static.cc',
+)
+
+hb_gpu_headers = [
+  'hb-gpu.h',
+]
+
+libharfbuzz_gpu_dep = null_dep
+if not get_option('gpu').disabled()
+  gpu_deps = [m_dep]
+
+  libharfbuzz_gpu = library('harfbuzz-gpu',
+    hb_gpu_sources,
+    include_directories: incconfig,
+    dependencies: gpu_deps,
+    link_with: [libharfbuzz],
+    cpp_args: cpp_args + extra_hb_cpp_args,
+    soversion: hb_so_version,
+    version: version,
+    install: true,
+    darwin_versions: darwin_versions,
+    link_language: chosen_linker,
+  )
+
+  install_headers(hb_gpu_headers, subdir: meson.project_name())
+
+  libharfbuzz_gpu_dep = declare_dependency(
+    link_with: libharfbuzz_gpu,
+    include_directories: incsrc,
+    dependencies: [libharfbuzz_dep])
+  meson.override_dependency('harfbuzz-gpu', libharfbuzz_gpu_dep)
+
+  harfbuzz_gpu_def = custom_target('harfbuzz-gpu.def',
+    command: gen_def_cmd,
+    input: hb_gpu_headers,
+    output: 'harfbuzz-gpu.def')
+  defs_list += [harfbuzz_gpu_def]
+
+  pkgmod.generate(libharfbuzz_gpu,
+    description: 'HarfBuzz GPU rasterization library',
+    requires: ['harfbuzz = @0@'.format(meson.project_version())],
+    subdirs: [meson.project_name()],
+    version: meson.project_version(),
+  )
+endif
+
+hb_cairo_sources = files(
+  'hb-cairo.cc',
+  'hb-cairo-utils.cc',
+  'hb-cairo-utils.hh',
+  'hb-static.cc'
+)
+
+hb_cairo_headers = [
+  'hb-cairo.h',
+]
+
 libharfbuzz_cairo_dep = null_dep
 if conf.get('HAVE_CAIRO', 0) == 1
-  hb_cairo_sources = [
-    'hb-cairo.cc',
-    'hb-cairo-utils.cc',
-    'hb-cairo-utils.hh',
-    'hb-static.cc'
-  ]
-
-  hb_cairo_headers = [
-    'hb-cairo.h',
-  ]
 
   cairo_dep = dependency('cairo')
 
@@ -934,6 +986,7 @@ if get_option('tests').enabled()
     'test-classdef-graph': ['graph/test-classdef-graph.cc', 'hb-static.cc', 'graph/gsubgpos-context.cc'],
     'test-decycler': ['test-decycler.cc', 'hb-static.cc'],
     'test-iter': ['test-iter.cc', 'hb-static.cc'],
+    'test-geometry': ['test-geometry.cc', 'hb-static.cc'],
     'test-machinery': ['test-machinery.cc', 'hb-static.cc'],
     'test-map': ['test-map.cc', 'hb-static.cc'],
     'test-multimap': ['test-multimap.cc', 'hb-static.cc'],
@@ -1056,6 +1109,16 @@ if fs.is_absolute(cmake_install_libdir)
   endif
 endif
 
+cmake_install_bindir = get_option('bindir')
+
+if fs.is_absolute(cmake_install_bindir)
+  if meson.version().version_compare('>=1.3.0')
+    cmake_install_bindir = fs.relative_to(cmake_install_bindir, get_option('prefix'))
+  else
+    cmake_install_bindir = run_command(relative_to, cmake_install_bindir, get_option('prefix'), check: true).stdout().strip()
+  endif
+endif
+
 cmake_config.set('PACKAGE_INIT', '''
 get_filename_component(PACKAGE_PREFIX_DIR "@0@" ABSOLUTE)
 
@@ -1079,21 +1142,36 @@ endmacro()
 
 cmake_config.set('PACKAGE_CMAKE_INSTALL_INCLUDEDIR', '${PACKAGE_PREFIX_DIR}/@0@'.format(cmake_install_includedir))
 cmake_config.set('PACKAGE_CMAKE_INSTALL_LIBDIR', '${PACKAGE_PREFIX_DIR}/@0@'.format(cmake_install_libdir))
+cmake_config.set('PACKAGE_CMAKE_INSTALL_BINDIR', '${PACKAGE_PREFIX_DIR}/@0@'.format(cmake_install_bindir))
 cmake_config.set('PACKAGE_INCLUDE_INSTALL_DIR', '${PACKAGE_PREFIX_DIR}/@0@/@1@'.format(cmake_install_includedir, meson.project_name()))
 cmake_config.set('HARFBUZZ_VERSION', meson.project_version())
 cmake_config.set('HB_HAVE_GOBJECT', have_gobject ? 'YES' : 'NO')
 cmake_config.set('HB_LIBRARY_TYPE', get_option('default_library') == 'static' ? 'STATIC' : 'SHARED')
+cmake_config.set('HB_HAS_IMPORT_LIBRARY', 'NO')
+cmake_config.set('HB_IMPLIB_PREFIX', '')
+cmake_config.set('HB_IMPLIB_SUFFIX', '')
 
 if get_option('default_library') == 'static'
+  cmake_config.set('HB_LIB_DIR', '${PACKAGE_PREFIX_DIR}/@0@'.format(cmake_install_libdir))
   cmake_config.set('HB_LIB_PREFIX', '${CMAKE_STATIC_LIBRARY_PREFIX}')
   cmake_config.set('HB_LIB_SUFFIX', '${CMAKE_STATIC_LIBRARY_SUFFIX}')
 elif host_machine.system() == 'darwin'
+  cmake_config.set('HB_LIB_DIR', '${PACKAGE_PREFIX_DIR}/@0@'.format(cmake_install_libdir))
   cmake_config.set('HB_LIB_PREFIX', '${CMAKE_SHARED_LIBRARY_PREFIX}')
   cmake_config.set('HB_LIB_SUFFIX', '.@0@${CMAKE_SHARED_LIBRARY_SUFFIX}'.format(hb_so_version))
 elif host_machine.system() == 'windows'
-  cmake_config.set('HB_LIB_PREFIX', '${CMAKE_IMPORT_LIBRARY_PREFIX}')
-  cmake_config.set('HB_LIB_SUFFIX', '${CMAKE_IMPORT_LIBRARY_SUFFIX}')
+  cmake_config.set('HB_HAS_IMPORT_LIBRARY', 'YES')
+  cmake_config.set('HB_LIB_DIR', '${PACKAGE_PREFIX_DIR}/@0@'.format(cmake_install_bindir))
+  cmake_config.set('HB_LIB_PREFIX', '${CMAKE_SHARED_LIBRARY_PREFIX}')
+  if hb_so_version == ''
+    cmake_config.set('HB_LIB_SUFFIX', '${CMAKE_SHARED_LIBRARY_SUFFIX}')
+  else
+    cmake_config.set('HB_LIB_SUFFIX', '-@0@${CMAKE_SHARED_LIBRARY_SUFFIX}'.format(hb_so_version))
+  endif
+  cmake_config.set('HB_IMPLIB_PREFIX', '${CMAKE_IMPORT_LIBRARY_PREFIX}')
+  cmake_config.set('HB_IMPLIB_SUFFIX', '${CMAKE_IMPORT_LIBRARY_SUFFIX}')
 else
+  cmake_config.set('HB_LIB_DIR', '${PACKAGE_PREFIX_DIR}/@0@'.format(cmake_install_libdir))
   cmake_config.set('HB_LIB_PREFIX', '${CMAKE_SHARED_LIBRARY_PREFIX}')
   cmake_config.set('HB_LIB_SUFFIX', '${CMAKE_SHARED_LIBRARY_SUFFIX}.@0@'.format(version))
 endif
@@ -1270,3 +1348,26 @@ install_headers(hb_headers, subdir: meson.project_name())
 if not get_option('subset').disabled()
   install_headers(hb_subset_headers, subdir: meson.project_name())
 endif
+
+custom_target('harfbuzz-world.cc',
+  build_by_default: true,
+  output: 'harfbuzz-world.cc',
+  input: ['harfbuzz-world.cc.in'],
+  command: [find_program('gen-harfbuzz-world.py'),
+            '@OUTPUT@', meson.current_source_dir(), '@INPUT@',
+            '--BASE_SOURCES'] + hb_base_sources +
+           ['--FREETYPE_SOURCES'] + hb_ft_sources +
+           ['--GLIB_SOURCES'] + hb_glib_sources +
+           ['--GRAPHITE_SOURCES'] + hb_graphite2_sources +
+           ['--UNISCRIBE_SOURCES'] + hb_uniscribe_sources +
+           ['--GDI_SOURCES'] + hb_gdi_sources +
+           ['--DIRECTWRITE_SOURCES'] + hb_directwrite_sources +
+           ['--CORETEXT_SOURCES'] + hb_coretext_sources +
+           ['--WASM_SOURCES'] + hb_wasm_sources +
+           ['--SUBSET_SOURCES'] + hb_subset_sources +
+           ['--ICU_SOURCES'] + hb_icu_sources +
+           ['--CAIRO_SOURCES'] + hb_cairo_sources +
+           ['--RASTER_SOURCES'] + hb_raster_sources +
+           ['--VECTOR_SOURCES'] + hb_vector_sources +
+           ['--GPU_SOURCES'] + hb_gpu_sources,
+)

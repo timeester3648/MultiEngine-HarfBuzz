@@ -68,6 +68,11 @@ read_ranges (const uint8_t *&p,
     if (finish < start)
       return false;
 
+    if (finish - start > 5000) {
+      // Prevent fuzzer timeouts by rejecting large ranges.
+      return false;
+    }
+
     if (is_add)
       hb_set_add_range (set, start, finish);
     else
@@ -345,7 +350,6 @@ try_legacy_input (const uint8_t *data, size_t size)
 
 extern "C" int LLVMFuzzerTestOneInput (const uint8_t *data, size_t size)
 {
-  _fuzzing_skip_leading_comment (&data, &size);
   alloc_state = _fuzzing_alloc_state (data, size);
 
   if (try_extended_input (data, size))
