@@ -56,7 +56,7 @@
 
 #define HB_GPU_INV_UNITS float(1.0 / float(HB_GPU_UNITS_PER_EM))
 
-
+#ifndef HB_GPU_CUSTOM_ATLAS
 #ifdef HB_GPU_ATLAS_2D
 uniform highp isampler2D hb_gpu_atlas;
 uniform int hb_gpu_atlas_width;
@@ -72,6 +72,7 @@ ivec4 hb_gpu_fetch (int offset)
 {
   return texelFetch (hb_gpu_atlas, offset);
 }
+#endif
 #endif
 
 
