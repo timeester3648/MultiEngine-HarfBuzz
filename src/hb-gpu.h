@@ -76,6 +76,26 @@ hb_gpu_draw_shader_source (hb_gpu_shader_stage_t stage,
 
 
 /**
+ * hb_gpu_fill_rule_t:
+ * @HB_GPU_FILL_RULE_NON_ZERO: Non-zero winding rule (the default).
+ *   A point is inside if the outline winds around it a non-zero
+ *   number of times; overlapping same-direction contours merge.
+ * @HB_GPU_FILL_RULE_EVEN_ODD: Even-odd rule.  A point is inside if
+ *   a ray from it crosses an odd number of contour segments;
+ *   overlapping contours cancel out regardless of direction.
+ *
+ * Fill rule used to turn the winding of the encoded outline into
+ * coverage.  The rule is stored in the encoded blob, so it is
+ * resolved by the shader without any extra uniform.
+ *
+ * Since: 14.2.0
+ */
+typedef enum {
+  HB_GPU_FILL_RULE_NON_ZERO,
+  HB_GPU_FILL_RULE_EVEN_ODD,
+} hb_gpu_fill_rule_t;
+
+/**
  * hb_gpu_draw_t:
  *
  * An opaque GPU shape encoder.  Accumulates outlines via draw
@@ -118,6 +138,15 @@ HB_EXTERN void
 hb_gpu_draw_get_scale (const hb_gpu_draw_t *draw,
 		       int                 *x_scale,
 		       int                 *y_scale);
+
+/* Fill rule */
+
+HB_EXTERN void
+hb_gpu_draw_set_fill_rule (hb_gpu_draw_t      *draw,
+			   hb_gpu_fill_rule_t  fill_rule);
+
+HB_EXTERN hb_gpu_fill_rule_t
+hb_gpu_draw_get_fill_rule (const hb_gpu_draw_t *draw);
 
 /* Draw */
 

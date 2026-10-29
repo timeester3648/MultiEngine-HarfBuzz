@@ -136,6 +136,10 @@ hb_gpu_paint_push_clip_path_start (hb_paint_funcs_t *funcs HB_UNUSED,
   }
 
   hb_gpu_draw_clear (c->scratch_draw);
+  /* Fill rule is persistent draw configuration; reset it so a previous
+   * clip's rule does not leak into this one.  Path clips may override it
+   * (hb_gpu_draw_set_fill_rule on the returned draw_data) before drawing. */
+  hb_gpu_draw_set_fill_rule (c->scratch_draw, HB_GPU_FILL_RULE_NON_ZERO);
   /* Seed the scratch encoder's budget from the session's remainder; it is
    * read back in push_clip_path_end after the caller has drawn the path. */
   hb_draw_set_budget (hb_gpu_draw_get_funcs (c->scratch_draw), c->scratch_draw,
@@ -481,6 +485,10 @@ emit_clip_sub_blob (hb_gpu_paint_t *c,
     }
   }
   hb_gpu_draw_clear (c->scratch_draw);
+  /* Fill rule is persistent draw configuration; reset it so a previous
+   * clip's rule does not leak into this one.  Path clips may override it
+   * (hb_gpu_draw_set_fill_rule on the returned draw_data) before drawing. */
+  hb_gpu_draw_set_fill_rule (c->scratch_draw, HB_GPU_FILL_RULE_NON_ZERO);
   /* Seed the scratch encoder's budget from the session's remainder and
    * read it back after the glyph is drawn, so the whole paint walk shares
    * one budget through the public draw-budget API. */

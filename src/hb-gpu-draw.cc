@@ -435,7 +435,7 @@ _hb_gpu_draw_get_extents (hb_gpu_draw_t      *draw,
  *
  * The returned blob owns its own copy of the data.  On success
  * @draw is auto-cleared so it can be reused for the next glyph;
- * user configuration (font scale) is preserved.
+ * user configuration (font scale, fill rule) is preserved.
  *
  * Return value: (transfer full):
  * An #hb_blob_t containing the encoded data, or `NULL` if encoding
@@ -737,7 +737,9 @@ hb_gpu_draw_encode (hb_gpu_draw_t      *draw,
   buf[0].g = min_y_q;
   buf[0].b = max_x_q;
   buf[0].a = max_y_q;
-  buf[1].r = (int16_t) num_hbands;
+  buf[1].r = (int16_t) (num_hbands |
+			(draw->fill_rule == HB_GPU_FILL_RULE_EVEN_ODD ?
+			 HB_GPU_HEADER_FLAG_EVEN_ODD : 0));
   buf[1].g = (int16_t) num_vbands;
   buf[1].b = (int16_t) hb_clamp (draw->x_scale, -32768, 32767);
   buf[1].a = (int16_t) hb_clamp (draw->y_scale, -32768, 32767);
@@ -1052,6 +1054,49 @@ hb_gpu_draw_get_scale (const hb_gpu_draw_t *draw,
 }
 
 /**
+ * hb_gpu_draw_set_fill_rule:
+ * @draw: a GPU shape encoder
+ * @fill_rule: the fill rule to bake into subsequently encoded blobs
+ *
+ * Sets the fill rule used when the shader converts the outline's
+ * winding into coverage.  The default is
+ * #HB_GPU_FILL_RULE_NON_ZERO, which is what fonts expect.  Use
+ * #HB_GPU_FILL_RULE_EVEN_ODD for arbitrary shapes (for example SVG
+ * paths) whose overlapping contours should cancel out.
+ *
+ * The setting is preserved across hb_gpu_draw_clear() and
+ * hb_gpu_draw_encode(), and restored to the default by
+ * hb_gpu_draw_reset().
+ *
+ * Since: 14.2.0
+ **/
+void
+hb_gpu_draw_set_fill_rule (hb_gpu_draw_t      *draw,
+			   hb_gpu_fill_rule_t  fill_rule)
+{
+  draw->fill_rule = fill_rule == HB_GPU_FILL_RULE_EVEN_ODD ?
+		    HB_GPU_FILL_RULE_EVEN_ODD :
+		    HB_GPU_FILL_RULE_NON_ZERO;
+}
+
+/**
+ * hb_gpu_draw_get_fill_rule:
+ * @draw: a GPU shape encoder
+ *
+ * Gets the fill rule previously set via hb_gpu_draw_set_fill_rule().
+ *
+ * Return value:
+ * The current fill rule.
+ *
+ * Since: 14.2.0
+ **/
+hb_gpu_fill_rule_t
+hb_gpu_draw_get_fill_rule (const hb_gpu_draw_t *draw)
+{
+  return draw->fill_rule;
+}
+
+/**
  * hb_gpu_draw_glyph_or_fail:
  * @draw: a GPU shape encoder
  * @font: font to draw from
@@ -1145,6 +1190,7 @@ hb_gpu_draw_reset (hb_gpu_draw_t *draw)
 {
   draw->x_scale = 0;
   draw->y_scale = 0;
+  draw->fill_rule = HB_GPU_FILL_RULE_NON_ZERO;
   draw->budget = HB_BUDGET_DEFAULT;
   hb_gpu_draw_clear (draw);
 }
