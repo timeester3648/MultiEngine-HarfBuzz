@@ -269,6 +269,31 @@ test_subset_cff1_seac (void)
 }
 
 static void
+test_subset_cff1_seac_precheck (void)
+{
+  const char *fonts[] = {
+    "fonts/cff1_seac_dotsection.otf",
+    "fonts/cff1_seac_subr_endchar.otf",
+  };
+
+  for (unsigned int i = 0; i < G_N_ELEMENTS (fonts); i++)
+  {
+    hb_face_t *face = hb_test_open_font_file (fonts[i]);
+    hb_set_t *codepoints = hb_set_create ();
+    hb_set_add (codepoints, 0xC1);  /* Aacute */
+    hb_face_t *subset = hb_subset_test_create_subset (face,
+                                                       hb_subset_test_create_input (codepoints));
+    hb_set_destroy (codepoints);
+
+    /* .notdef, Aacute and both seac components. */
+    g_assert_cmpuint (hb_face_get_glyph_count (subset), ==, 4);
+
+    hb_face_destroy (subset);
+    hb_face_destroy (face);
+  }
+}
+
+static void
 test_subset_cff1_dotsection (void)
 {
   hb_face_t *face = hb_test_open_font_file ("fonts/cff1_dotsect.otf");
@@ -336,6 +361,54 @@ test_subset_cff1_j_retaingids (void)
   hb_face_destroy (face_41_4c2e);
 }
 
+static void
+test_subset_cff1_identity_charset (void)
+{
+  /* The flag has no effect on a name-keyed font, so this is the same output
+   * as test_subset_cff1(). */
+  hb_face_t *face_abc = hb_test_open_font_file ("fonts/SourceSansPro-Regular.abc.otf");
+  hb_face_t *face_ac = hb_test_open_font_file ("fonts/SourceSansPro-Regular.ac.otf");
+
+  hb_set_t *codepoints = hb_set_create ();
+  hb_subset_input_t *input;
+  hb_face_t *face_abc_subset;
+  hb_set_add (codepoints, 'a');
+  hb_set_add (codepoints, 'c');
+  input = hb_subset_test_create_input (codepoints);
+  hb_subset_input_set_flags (input, HB_SUBSET_FLAGS_CFF_IDENTITY_CHARSET);
+  face_abc_subset = hb_subset_test_create_subset (face_abc, input);
+  hb_set_destroy (codepoints);
+
+  hb_subset_test_check (face_ac, face_abc_subset, HB_TAG ('C','F','F',' '));
+
+  hb_face_destroy (face_abc_subset);
+  hb_face_destroy (face_abc);
+  hb_face_destroy (face_ac);
+}
+
+static void
+test_subset_cff1_j_identity_charset (void)
+{
+  hb_face_t *face_41_3041_4c2e = hb_test_open_font_file ("fonts/SourceHanSans-Regular.41,3041,4C2E.otf");
+  hb_face_t *face_41_4c2e = hb_test_open_font_file ("fonts/SourceHanSans-Regular.41,4C2E.identity.otf");
+
+  hb_set_t *codepoints = hb_set_create ();
+  hb_subset_input_t *input;
+  hb_face_t *face_41_3041_4c2e_subset;
+  hb_set_add (codepoints, 0x41);
+  hb_set_add (codepoints, 0x4C2E);
+  input = hb_subset_test_create_input (codepoints);
+  hb_subset_input_set_flags (input, HB_SUBSET_FLAGS_CFF_IDENTITY_CHARSET);
+  face_41_3041_4c2e_subset = hb_subset_test_create_subset (face_41_3041_4c2e, input);
+  hb_set_destroy (codepoints);
+
+  hb_subset_test_check (face_41_4c2e, face_41_3041_4c2e_subset, HB_TAG ('C','F','F',' '));
+
+  hb_face_destroy (face_41_3041_4c2e_subset);
+  hb_face_destroy (face_41_3041_4c2e);
+  hb_face_destroy (face_41_4c2e);
+}
+
 #ifdef HB_EXPERIMENTAL_API
 static void
 test_subset_cff1_iftb_requirements (void)
@@ -364,10 +437,41 @@ test_subset_cff1_iftb_requirements (void)
 #endif
 
 
+/* Caller-dependent subroutine numbers cannot be remapped at a shared offset. */
+static void
+test_subset_cff1_caller_supplied_subr (void)
+{
+  hb_face_t *face = hb_test_open_font_file ("fonts/cff1_caller_subr.otf");
+  hb_subset_input_t *input = hb_subset_input_create_or_fail ();
+  hb_set_add_range (hb_subset_input_unicode_set (input), 'A', 'B');
+  for (unsigned i = 0; i < 2; i++)
+  {
+    hb_subset_input_set_flags (input, i ? HB_SUBSET_FLAGS_NO_HINTING : HB_SUBSET_FLAGS_DEFAULT);
+    hb_face_t *subset = hb_subset_or_fail (face, input);
+    g_assert_null (subset);
+  }
+  /* Explicit flattening does not remap caller-supplied operands. */
+  hb_subset_input_set_flags (input, HB_SUBSET_FLAGS_DESUBROUTINIZE);
+  hb_face_t *subset = hb_subset_or_fail (face, input);
+  g_assert_nonnull (subset);
+  hb_font_t *font = hb_font_create (subset);
+  hb_glyph_extents_t extents;
+  g_assert_true (hb_font_get_glyph_extents (font, 1, &extents));
+  g_assert_cmpint (extents.width, ==, 10);
+  g_assert_true (hb_font_get_glyph_extents (font, 2, &extents));
+  g_assert_cmpint (extents.width, ==, 20);
+  hb_font_destroy (font);
+  hb_face_destroy (subset);
+  hb_subset_input_destroy (input);
+  hb_face_destroy (face);
+}
+
 int
 main (int argc, char **argv)
 {
   hb_test_init (&argc, &argv);
+
+  hb_test_add (test_subset_cff1_caller_supplied_subr);
 
   hb_test_add (test_subset_cff1_noop);
   hb_test_add (test_subset_cff1);
@@ -380,9 +484,12 @@ main (int argc, char **argv)
   hb_test_add (test_subset_cff1_j_desubr_strip_hints);
   hb_test_add (test_subset_cff1_expert);
   hb_test_add (test_subset_cff1_seac);
+  hb_test_add (test_subset_cff1_seac_precheck);
   hb_test_add (test_subset_cff1_dotsection);
   hb_test_add (test_subset_cff1_retaingids);
   hb_test_add (test_subset_cff1_j_retaingids);
+  hb_test_add (test_subset_cff1_identity_charset);
+  hb_test_add (test_subset_cff1_j_identity_charset);
 
 #ifdef HB_EXPERIMENTAL_API
   hb_test_add (test_subset_cff1_iftb_requirements);

@@ -24,11 +24,146 @@
 
 #include "hb.hh"
 #include "hb-ot-cff-common.hh"
+#include "hb-ot-cff1-table.hh"
 #include "hb-subset-cff-common.hh"
+#include "hb-cff-specializer.hh"
+
+static void
+test_specialized_line_geometry ()
+{
+  /* Reconstruct every point after specializing horizontal/vertical line
+   * sequences, including repeated directions and merged alternating runs. */
+  for (unsigned n = 1; n <= 8; n++)
+    for (unsigned mask = 0; mask < (1u << n); mask++)
+      for (unsigned maxstack : {4u, 48u})
+      {
+        hb_vector_t<CFF::cs_command_t> commands;
+        for (unsigned i = 0; i < n; i++)
+        {
+          bool horizontal = mask & (1u << i);
+          int delta = (i & 1) ? -(int) i - 1 : (int) i + 1;
+          CFF::cs_command_t cmd (OpCode_rlineto);
+          CFF::number_t dx, dy;
+          dx.set_int (horizontal ? delta : 0);
+          dy.set_int (horizontal ? 0 : delta);
+          cmd.args.push (dx);
+          cmd.args.push (dy);
+          commands.push (std::move (cmd));
+        }
+        CFF::specialize_commands (commands, maxstack);
+        for (const auto &cmd : commands)
+          hb_always_assert (cmd.args.length <= maxstack);
+        CFF::str_buff_t encoded;
+        hb_always_assert (CFF::encode_commands (commands, encoded));
+        CFF::generalize_commands (commands);
+        hb_always_assert (commands.length == n);
+        int x = 0, y = 0, expected_x = 0, expected_y = 0;
+        for (unsigned i = 0; i < n; i++)
+        {
+          bool horizontal = mask & (1u << i);
+          int delta = (i & 1) ? -(int) i - 1 : (int) i + 1;
+          expected_x += horizontal ? delta : 0;
+          expected_y += horizontal ? 0 : delta;
+          x += commands[i].args[0].to_int ();
+          y += commands[i].args[1].to_int ();
+          hb_always_assert (x == expected_x && y == expected_y);
+        }
+      }
+}
+
+static void
+test_specialized_fractional_geometry ()
+{
+  const double deltas[][2] = {
+    {0.5, 12}, {-0.5, 12}, {12, 0.5}, {12, -0.5},
+    {0.25, -0.75}, {0, 12}, {12, 0},
+  };
+  for (CFF::op_code_t op : {OpCode_rmoveto, OpCode_rlineto})
+    for (const auto &delta : deltas)
+    {
+      hb_vector_t<CFF::cs_command_t> commands;
+      CFF::cs_command_t cmd (op);
+      CFF::number_t dx, dy;
+      dx.set_real (delta[0]);
+      dy.set_real (delta[1]);
+      cmd.args.push (dx);
+      cmd.args.push (dy);
+      commands.push (std::move (cmd));
+      CFF::specialize_commands (commands);
+      CFF::str_buff_t encoded;
+      hb_always_assert (CFF::encode_commands (commands, encoded));
+      CFF::generalize_commands (commands);
+      hb_always_assert (commands.length == 1);
+      hb_always_assert (commands[0].op == op);
+      hb_always_assert (commands[0].args.length == 2);
+      hb_always_assert (commands[0].args[0].to_real () == delta[0]);
+      hb_always_assert (commands[0].args[1].to_real () == delta[1]);
+    }
+}
+
+static void
+test_charset1_splits_long_ranges ()
+{
+  hb_vector_t<CFF::code_pair_t> ranges;
+  ranges.push (CFF::code_pair_t {100, 511});
+  ranges.push (CFF::code_pair_t {1000, 0});
+
+  char buffer[10];
+  hb_serialize_context_t c (buffer, sizeof (buffer));
+  auto *charset = c.start_serialize<CFF::Charset> ();
+  hb_always_assert (charset->serialize (&c, 1, 514, ranges));
+  c.end_serialize ();
+  hb_always_assert (!c.in_error ());
+
+  const unsigned char expected[] = {
+    1, 0, 100, 255, 1, 100, 255, 3, 232, 0,
+  };
+  hb_bytes_t bytes = c.copy_bytes ();
+  hb_always_assert (bytes.length == sizeof (expected));
+  hb_always_assert (!hb_memcmp (bytes.arrayZ, expected, sizeof (expected)));
+  bytes.fini ();
+
+  for (unsigned int i = 0; i < 10; i++)
+    ranges.push (CFF::code_pair_t {2000 + i * 2, 0});
+  hb_always_assert (CFF::Charset::get_size_for_format1 (ranges) <
+		    CFF::Charset2::get_size_for_ranges (ranges.length));
+}
+
+template <typename GID, typename FD>
+static void
+test_fd_select_sentinel ()
+{
+  unsigned char data[3 * GID::static_size + FD::static_size] = {};
+  auto *select = reinterpret_cast<CFF::FDSelect3_4<GID, FD> *> (data);
+  select->ranges.len = 1;
+  select->ranges.arrayZ[0].first = 0;
+  select->ranges.arrayZ[0].fd = 0;
+  hb_sanitize_context_t c ((const char *) data, (const char *) data + sizeof (data));
+  c.set_num_glyphs (4);
+  c.start_processing ();
+
+  select->sentinel () = 3;
+  hb_always_assert (select->sanitize (&c, 1, 3));
+  hb_always_assert (!select->sanitize (&c, 1));
+  select->sentinel () = 4;
+  hb_always_assert (select->sanitize (&c, 1, 3));
+  hb_always_assert (select->sanitize (&c, 1));
+  select->sentinel () = 2;
+  hb_always_assert (!select->sanitize (&c, 1, 3));
+  select->sentinel () = 5;
+  hb_always_assert (!select->sanitize (&c, 1, 3));
+  c.end_processing ();
+}
 
 int
 main (int argc, char **argv)
 {
+  test_specialized_line_geometry ();
+  test_specialized_fractional_geometry ();
+  test_charset1_splits_long_ranges ();
+  test_fd_select_sentinel<OT::HBUINT16, OT::HBUINT8> ();
+  test_fd_select_sentinel<OT::HBUINT32, OT::HBUINT16> ();
+
   /* Test encode_num_tp */
   {
     CFF::str_buff_t buff;

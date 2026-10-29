@@ -29,7 +29,7 @@
 /* Unit tests for hb-buffer.h */
 
 
-static const char utf8[10] = "ab\360\240\200\200defg";
+static const char utf8[10] = {'a', 'b', '\360', '\240', '\200', '\200', 'd', 'e', 'f', 'g'};
 static const uint16_t utf16[8] = {'a', 'b', 0xD840, 0xDC00, 'd', 'e', 'f', 'g'};
 static const uint32_t utf32[7] = {'a', 'b', 0x20000, 'd', 'e', 'f', 'g'};
 
@@ -246,6 +246,92 @@ test_buffer_create_similar (void)
   hb_buffer_destroy (b);
 }
 
+#if !defined(HB_NO_BUFFER_MESSAGE) && !defined(HB_NO_OT_SHAPE)
+typedef struct
+{
+  unsigned int calls;
+  unsigned int destroyed;
+} message_data_t;
+
+static hb_bool_t
+buffer_message (hb_buffer_t *buffer HB_UNUSED, hb_font_t *font HB_UNUSED,
+                const char *message, void *user_data)
+{
+  message_data_t *data = user_data;
+  data->calls++;
+  return strncmp (message, "start lookup", 12) != 0;
+}
+
+static void
+buffer_message_destroy (void *user_data)
+{
+  message_data_t *data = user_data;
+  data->destroyed++;
+}
+
+static void
+shape_buffer_message (hb_buffer_t *buffer, hb_font_t *font,
+                      unsigned int expected_length)
+{
+  const char *shapers[] = {"ot", NULL};
+  hb_buffer_add_utf8 (buffer, "fi", -1, 0, -1);
+  hb_buffer_guess_segment_properties (buffer);
+  g_assert_true (hb_shape_full (font, buffer, NULL, 0, shapers));
+  g_assert_cmpuint (hb_buffer_get_length (buffer), ==, expected_length);
+}
+
+static void
+test_buffer_message_lifetime (void)
+{
+  hb_face_t *face = hb_test_open_font_file ("fonts/Roboto-Regular.gsub.fi.ttf");
+  hb_font_t *font = hb_font_create (face);
+  hb_buffer_t *buffer = hb_buffer_create ();
+  message_data_t first = {0, 0}, second = {0, 0}, last = {0, 0};
+  hb_user_data_key_t key = {0};
+
+  g_assert_true (hb_buffer_set_user_data (buffer, &key, &first, NULL, FALSE));
+  hb_buffer_set_message_func (buffer, buffer_message, &first, buffer_message_destroy);
+  shape_buffer_message (buffer, font, 2);
+  g_assert_cmpuint (first.calls, >, 0);
+  unsigned int calls = first.calls;
+
+  hb_buffer_clear_contents (buffer);
+  g_assert_cmpuint (first.destroyed, ==, 0);
+  shape_buffer_message (buffer, font, 2);
+  g_assert_cmpuint (first.calls, >, calls);
+  calls = first.calls;
+
+  hb_buffer_reset (buffer);
+  g_assert_cmpuint (first.destroyed, ==, 0);
+  g_assert_true (hb_buffer_get_user_data (buffer, &key) == &first);
+  shape_buffer_message (buffer, font, 2);
+  g_assert_cmpuint (first.calls, >, calls);
+
+  hb_buffer_set_message_func (buffer, buffer_message, &second, buffer_message_destroy);
+  g_assert_cmpuint (first.destroyed, ==, 1);
+  hb_buffer_clear_contents (buffer);
+  shape_buffer_message (buffer, font, 2);
+  g_assert_cmpuint (second.calls, >, 0);
+  calls = second.calls;
+
+  hb_buffer_set_message_func (buffer, NULL, NULL, NULL);
+  g_assert_cmpuint (second.destroyed, ==, 1);
+  hb_buffer_clear_contents (buffer);
+  shape_buffer_message (buffer, font, 1);
+  g_assert_cmpuint (second.calls, ==, calls);
+
+  hb_buffer_set_message_func (buffer, buffer_message, &last, buffer_message_destroy);
+  hb_buffer_reset (buffer);
+  g_assert_cmpuint (last.destroyed, ==, 0);
+  hb_buffer_destroy (buffer);
+  g_assert_cmpuint (first.destroyed, ==, 1);
+  g_assert_cmpuint (second.destroyed, ==, 1);
+  g_assert_cmpuint (last.destroyed, ==, 1);
+  hb_font_destroy (font);
+  hb_face_destroy (face);
+}
+#endif
+
 static void
 test_buffer_contents (gpointer fixture_, gconstpointer user_data)
 {
@@ -388,6 +474,27 @@ test_buffer_positions (gpointer fixture_, gconstpointer user_data HB_UNUSED)
   /* test reset clears content */
   hb_buffer_reset (b);
   g_assert_cmpint (hb_buffer_get_length (b), ==, 0);
+}
+
+static void
+test_buffer_diff_positions (void)
+{
+  hb_buffer_t *buffer = hb_buffer_create ();
+  hb_buffer_t *reference = hb_buffer_create ();
+
+  hb_buffer_add (buffer, 1, 0);
+  hb_buffer_add (reference, 1, 0);
+  hb_buffer_set_content_type (buffer, HB_BUFFER_CONTENT_TYPE_GLYPHS);
+  hb_buffer_set_content_type (reference, HB_BUFFER_CONTENT_TYPE_GLYPHS);
+
+  hb_buffer_get_glyph_positions (buffer, NULL)[0].x_advance = INT32_MIN;
+  hb_buffer_get_glyph_positions (reference, NULL)[0].x_advance = INT32_MAX;
+
+  g_assert_true (hb_buffer_diff (buffer, reference, (hb_codepoint_t) -1, 1) &
+		 HB_BUFFER_DIFF_FLAG_POSITION_MISMATCH);
+
+  hb_buffer_destroy (buffer);
+  hb_buffer_destroy (reference);
 }
 
 static void
@@ -1094,7 +1201,11 @@ main (int argc, char **argv)
   hb_test_add (test_buffer_utf16_conversion);
   hb_test_add (test_buffer_utf32_conversion);
   hb_test_add (test_buffer_empty);
+  hb_test_add (test_buffer_diff_positions);
   hb_test_add (test_buffer_create_similar);
+#if !defined(HB_NO_BUFFER_MESSAGE) && !defined(HB_NO_OT_SHAPE)
+  hb_test_add (test_buffer_message_lifetime);
+#endif
   hb_test_add (test_buffer_serialize_deserialize);
   hb_test_add (test_buffer_serialize_no_advances);
 
