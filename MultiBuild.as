@@ -20,12 +20,38 @@ void main(MultiBuild::Workspace& workspace) {
 		"./src/**.h",
 		"./src/**.hh",
 
+		// Note: HarfBuzz
 		"./src/harfbuzz.cc",
 
+		// Note: HarfBuzz-GPU
 		"./src/hb-gpu.cc",
 		"./src/hb-gpu-draw.cc",
 		"./src/hb-gpu-paint.cc",
 
+		// Note: HarfBuzz-subset
+		// "./src/OT/Var/VARC/VARC.cc", 	// already in base .cc
+		// "./src/hb-number.cc",			// already in base .cc
+		//"./src/hb-ot-cff1-table.cc",		// already in base .cc
+		//"./src/hb-ot-cff2-table.cc",		// already in base .cc
+		// "./src/hb-static.cc",			// already in base .cc
+		"./src/hb-subset-cff-common.cc",
+		"./src/hb-subset-cff1.cc",
+		"./src/hb-subset-cff2.cc",
+		"./src/hb-subset-input.cc",
+		"./src/hb-subset-instancer-iup.cc",
+		"./src/hb-subset-instancer-solver.cc",
+		"./src/hb-subset-plan.cc",
+		"./src/hb-subset-plan-layout.cc",
+		"./src/hb-subset-plan-var.cc",
+		"./src/hb-subset-serialize.cc",
+		"./src/hb-subset-table-layout.cc",
+		"./src/hb-subset-table-var.cc",
+		"./src/hb-subset-table-cff.cc",
+		"./src/hb-subset-table-color.cc",
+		"./src/hb-subset-table-other.cc",
+		"./src/hb-subset.cc",
+		"./src/graph/gsubgpos-context.cc",
+		
 		"./config/config.cc"
 	});
 
