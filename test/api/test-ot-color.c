@@ -478,6 +478,100 @@ test_hb_ot_color_png (void)
   hb_font_destroy (cbdt_font);
 }
 
+static void
+test_hb_ot_color_png_cbdt_records (void)
+{
+  /* Index subtable records that are out of order and overlap.  A glyph
+   * belongs to the first one that covers it.  Images of the Nth record
+   * are N bytes long.  This pins the accelerator's record index against
+   * the first-covering-record rule of the old linear walk. */
+  static const unsigned int lengths[] = {3, 2, 2, 3, 1, 1, 3, 3, 0};
+  static const uint8_t cblc[] = {
+    0, 3, 0, 0, /* version */
+    0, 0, 0, 1, /* numSizes */
+    /* BitmapSize */
+    0, 0, 0, 8 + 48, /* indexSubtableArrayOffset */
+    0, 0, 0, 78, /* indexTablesSize */
+    0, 0, 0, 3, /* numberOfIndexSubtables */
+    0, 0, 0, 0, /* colorRef */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* hori */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* vert */
+    0, 0, 0, 7, /* startGlyphIndex, endGlyphIndex */
+    32, 32, 32, 1, /* ppemX, ppemY, bitDepth, flags */
+    /* IndexSubtableRecords: firstGlyphIndex, lastGlyphIndex, offsetToSubtable */
+    0, 4, 0, 5, 0, 0, 0, 24,
+    0, 1, 0, 2, 0, 0, 0, 38,
+    0, 0, 0, 7, 0, 0, 0, 52,
+    /* IndexSubtableFormat3s: indexFormat, imageFormat, imageDataOffset, offsets */
+    0, 3, 0, 19, 0, 0, 0, 4, 0, 0, 0, 8, 0, 16,
+    0, 3, 0, 19, 0, 0, 0, 4 + 64, 0, 0, 0, 8, 0, 16,
+    0, 3, 0, 19, 0, 0, 0, 4 + 128, 0, 0, 0, 8, 0, 16, 0, 24, 0, 32, 0, 40, 0, 48, 0, 56, 0, 64,
+  };
+  uint8_t cbdt_data[4 + 3 * 64] = {0, 3, 0, 0};
+  for (unsigned int i = 0; i < 3 * 8; i++)
+    cbdt_data[4 + 8 * i + 3] = i / 8 + 1; /* GlyphBitmapDataFormat19 dataLen */
+
+  hb_face_t *face = hb_face_builder_create ();
+  hb_blob_t *blob = hb_blob_create ((const char *) cblc, sizeof (cblc),
+				    HB_MEMORY_MODE_READONLY, NULL, NULL);
+  hb_face_builder_add_table (face, HB_TAG ('C','B','L','C'), blob);
+  hb_blob_destroy (blob);
+  blob = hb_blob_create ((const char *) cbdt_data, sizeof (cbdt_data),
+			 HB_MEMORY_MODE_READONLY, NULL, NULL);
+  hb_face_builder_add_table (face, HB_TAG ('C','B','D','T'), blob);
+  hb_blob_destroy (blob);
+
+  hb_font_t *font = hb_font_create (face);
+  for (unsigned int gid = 0; gid < G_N_ELEMENTS (lengths); gid++)
+  {
+    blob = hb_ot_color_glyph_reference_png (font, gid);
+    g_assert_cmpuint (hb_blob_get_length (blob), ==, lengths[gid]);
+    hb_blob_destroy (blob);
+  }
+  hb_font_destroy (font);
+  hb_face_destroy (face);
+}
+
+#if !defined(HB_NO_VAR) && !defined(HB_NO_PAINT)
+static void
+test_hb_ot_color_clip_extents_overflow (void)
+{
+  /* Glyph 1 has a ClipBoxFormat2 whose deltas saturate every edge to
+   * INT32_MAX at wght=1.  Scaling those extents must clamp them instead
+   * of converting an out-of-range float to int. */
+  hb_face_t *face = hb_test_open_font_file ("fonts/colr-var-overflow.ttf");
+  hb_font_t *font = hb_font_create (face);
+  hb_variation_t var = {HB_TAG ('w','g','h','t'), 1.f};
+  hb_glyph_extents_t extents;
+  const struct {
+    int scale;
+    hb_position_t bearing;
+    hb_position_t size;
+  } tests[] = {
+    /* float(INT32_MAX) rounds to 2^31, one past the clamped bearing. */
+    { 1, G_MAXINT32, 1},
+    { 2, G_MAXINT32, G_MAXINT32},
+    {-1, G_MININT32, 0},
+    {-2, G_MININT32, G_MININT32},
+  };
+
+  hb_font_set_variations (font, &var, 1);
+  int upem = hb_face_get_upem (face);
+  for (unsigned i = 0; i < G_N_ELEMENTS (tests); i++)
+  {
+    hb_font_set_scale (font, tests[i].scale * upem, tests[i].scale * upem);
+    g_assert_true (hb_font_get_glyph_extents (font, 1, &extents));
+    g_assert_cmpint (extents.x_bearing, ==, tests[i].bearing);
+    g_assert_cmpint (extents.y_bearing, ==, tests[i].bearing);
+    g_assert_cmpint (extents.width, ==, tests[i].size);
+    g_assert_cmpint (extents.height, ==, tests[i].size);
+  }
+
+  hb_font_destroy (font);
+  hb_face_destroy (face);
+}
+#endif
+
 int
 main (int argc, char **argv)
 {
@@ -506,6 +600,10 @@ main (int argc, char **argv)
   hb_test_add (test_hb_ot_color_glyph_get_layers);
   hb_test_add (test_hb_ot_color_has_data);
   hb_test_add (test_hb_ot_color_png);
+  hb_test_add (test_hb_ot_color_png_cbdt_records);
+#if !defined(HB_NO_VAR) && !defined(HB_NO_PAINT)
+  hb_test_add (test_hb_ot_color_clip_extents_overflow);
+#endif
 #ifndef HB_NO_SVG
   hb_test_add (test_hb_ot_color_svg);
 #endif

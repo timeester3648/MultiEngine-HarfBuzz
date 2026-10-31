@@ -269,11 +269,34 @@ test_subset_cff1_seac (void)
 }
 
 static void
+test_subset_cff1_cid_seac (void)
+{
+  hb_face_t *face = hb_test_open_font_file ("fonts/cff1_cid_seac.otf");
+  hb_subset_input_t *input = hb_subset_input_create_or_fail ();
+  hb_set_add (hb_subset_input_glyph_set (input), 3);
+
+  hb_subset_plan_t *plan = hb_subset_plan_create_or_fail (face, input);
+  g_assert_nonnull (plan);
+  const hb_map_t *mapping = hb_subset_plan_old_to_new_glyph_mapping (plan);
+  /* The CID charset entries 34 and 125 are not seac components. */
+  g_assert_cmpuint (hb_map_get_population (mapping), ==, 2);
+  g_assert_true (hb_map_has (mapping, 0));
+  g_assert_true (hb_map_has (mapping, 3));
+  g_assert_false (hb_map_has (mapping, 1));
+  g_assert_false (hb_map_has (mapping, 2));
+
+  hb_subset_plan_destroy (plan);
+  hb_subset_input_destroy (input);
+  hb_face_destroy (face);
+}
+
+static void
 test_subset_cff1_seac_precheck (void)
 {
   const char *fonts[] = {
     "fonts/cff1_seac_dotsection.otf",
     "fonts/cff1_seac_subr_endchar.otf",
+    "fonts/cff1_seac_subr_operands.otf",
   };
 
   for (unsigned int i = 0; i < G_N_ELEMENTS (fonts); i++)
@@ -336,6 +359,59 @@ test_subset_cff1_retaingids (void)
   hb_face_destroy (face_abc_subset);
   hb_face_destroy (face_abc);
   hb_face_destroy (face_ac);
+}
+
+static void
+test_subset_cff1_encoding_many_codes_retaingids (void)
+{
+  /* A format 1 encoding gives codes to 768 glyphs; with retain-gids
+   * the subset keeps more than 255 of them, too many for format 0. */
+  hb_face_t *face = hb_test_open_font_file ("fonts/cff1_encoding_many_codes.otf");
+  hb_face_t *face_expected = hb_test_open_font_file ("fonts/cff1_encoding_many_codes.300.retaingids.otf");
+
+  hb_set_t *glyphs = hb_set_create ();
+  hb_subset_input_t *input;
+  hb_face_t *face_subset;
+  hb_set_add (glyphs, 300);
+  input = hb_subset_test_create_input_from_glyphs (glyphs);
+  hb_subset_input_set_flags (input, HB_SUBSET_FLAGS_RETAIN_GIDS);
+  face_subset = hb_subset_test_create_subset (face, input);
+  hb_set_destroy (glyphs);
+
+  hb_subset_test_check (face_expected, face_subset, HB_TAG ('C','F','F',' '));
+
+  hb_face_destroy (face_subset);
+  hb_face_destroy (face);
+  hb_face_destroy (face_expected);
+}
+
+static void
+test_subset_cff1_encoding_range_overflow (void)
+{
+  hb_face_t *face = hb_test_open_font_file ("fonts/cff1_encoding_many_codes.otf");
+  hb_subset_input_t *input = hb_subset_input_create_or_fail ();
+  hb_set_t *glyphs = hb_subset_input_glyph_set (input);
+
+  /* Keep 256 codes in 255 ranges, the format 1 range limit. */
+  for (unsigned i = 1; i < 511; i += 2)
+    hb_set_add (glyphs, i);
+  hb_set_add (glyphs, 510);
+  hb_face_t *subset = hb_subset_or_fail (face, input);
+  g_assert_nonnull (subset);
+  g_assert_cmpuint (hb_face_get_glyph_count (subset), ==, 257);
+  hb_blob_t *cff = hb_face_reference_table (subset, HB_TAG ('C','F','F',' '));
+  g_assert_cmpuint (hb_blob_get_length (cff), >, 0);
+  hb_blob_destroy (cff);
+  hb_face_destroy (subset);
+
+  /* A 256th range must fail instead of silently dropping the CFF table. */
+  hb_set_del (glyphs, 510);
+  hb_set_add (glyphs, 511);
+  subset = hb_subset_or_fail (face, input);
+  g_assert_null (subset);
+
+  hb_subset_input_destroy (input);
+  hb_face_destroy (face);
 }
 
 static void
@@ -409,6 +485,38 @@ test_subset_cff1_j_identity_charset (void)
   hb_face_destroy (face_41_4c2e);
 }
 
+static void
+test_subset_cff1_preprocess_glyph_map_holes (void)
+{
+  const char *fonts[] = {
+    "fonts/SourceSansPro-Regular.abc.otf",
+    "fonts/SourceHanSans-Regular.41,4C2E.otf",
+  };
+  for (unsigned i = 0; i < G_N_ELEMENTS (fonts); i++)
+  {
+    hb_face_t *face = hb_test_open_font_file (fonts[i]);
+    hb_face_t *preprocessed = hb_subset_preprocess (face);
+    hb_subset_input_t *input = hb_subset_input_create_or_fail ();
+    hb_set_add (hb_subset_input_glyph_set (input), 1);
+    hb_set_add (hb_subset_input_glyph_set (input), 2);
+    hb_map_t *mapping = hb_subset_input_old_to_new_glyph_mapping (input);
+    hb_map_set (mapping, 1, 7);
+    hb_map_set (mapping, 2, 20);
+
+    hb_face_t *expected = hb_subset_or_fail (face, input);
+    hb_face_t *actual = hb_subset_or_fail (preprocessed, input);
+    g_assert_nonnull (expected);
+    g_assert_nonnull (actual);
+    hb_subset_test_check (expected, actual, HB_TAG ('C','F','F',' '));
+
+    hb_face_destroy (actual);
+    hb_face_destroy (expected);
+    hb_subset_input_destroy (input);
+    hb_face_destroy (preprocessed);
+    hb_face_destroy (face);
+  }
+}
+
 #ifdef HB_EXPERIMENTAL_API
 static void
 test_subset_cff1_iftb_requirements (void)
@@ -466,10 +574,26 @@ test_subset_cff1_caller_supplied_subr (void)
   hb_face_destroy (face);
 }
 
+static void
+test_subset_cff1_index_count_overflow (void)
+{
+  hb_face_t *face = hb_test_open_font_file ("fonts/SourceHanSans-Regular.41,4C2E.otf");
+  hb_subset_input_t *input = hb_subset_input_create_or_fail ();
+  hb_set_add (hb_subset_input_glyph_set (input), 1);
+  /* The output CharStrings count must fit in a CFF1 INDEX. */
+  hb_map_set (hb_subset_input_old_to_new_glyph_mapping (input), 1, 70000);
+
+  g_assert_null (hb_subset_or_fail (face, input));
+
+  hb_subset_input_destroy (input);
+  hb_face_destroy (face);
+}
+
 int
 main (int argc, char **argv)
 {
   hb_test_init (&argc, &argv);
+  hb_test_add (test_subset_cff1_index_count_overflow);
 
   hb_test_add (test_subset_cff1_caller_supplied_subr);
 
@@ -484,12 +608,16 @@ main (int argc, char **argv)
   hb_test_add (test_subset_cff1_j_desubr_strip_hints);
   hb_test_add (test_subset_cff1_expert);
   hb_test_add (test_subset_cff1_seac);
+  hb_test_add (test_subset_cff1_cid_seac);
   hb_test_add (test_subset_cff1_seac_precheck);
   hb_test_add (test_subset_cff1_dotsection);
   hb_test_add (test_subset_cff1_retaingids);
   hb_test_add (test_subset_cff1_j_retaingids);
+  hb_test_add (test_subset_cff1_encoding_many_codes_retaingids);
+  hb_test_add (test_subset_cff1_encoding_range_overflow);
   hb_test_add (test_subset_cff1_identity_charset);
   hb_test_add (test_subset_cff1_j_identity_charset);
+  hb_test_add (test_subset_cff1_preprocess_glyph_map_holes);
 
 #ifdef HB_EXPERIMENTAL_API
   hb_test_add (test_subset_cff1_iftb_requirements);
