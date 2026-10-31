@@ -65,9 +65,4 @@ void main(MultiBuild::Workspace& workspace) {
 		MultiBuild::ScopedFilter _(project, "project.compiler:VisualCpp");
 		properties.disable_warnings({ "4805", "4267", "4244", "4996" });
 	}
-
-	properties.pre_build_commands("{:copy_file:} \"{:project.root}/src/hb-gpu-vertex.glsl\" \"{:workspace.root}/resources/shaders/MultiEngine/general/vector/harfbuzz/hb-gpu-vertex.glsl\"");
-	properties.pre_build_commands("{:copy_file:} \"{:project.root}/src/hb-gpu-fragment.glsl\" \"{:workspace.root}/resources/shaders/MultiEngine/general/vector/harfbuzz/hb-gpu-fragment.glsl\"");
-	properties.pre_build_commands("{:copy_file:} \"{:project.root}/src/hb-gpu-draw-fragment.glsl\" \"{:workspace.root}/resources/shaders/MultiEngine/general/vector/harfbuzz/hb-gpu-draw-fragment.glsl\"");
-	properties.pre_build_commands("{:copy_file:} \"{:project.root}/src/hb-gpu-paint-fragment.glsl\" \"{:workspace.root}/resources/shaders/MultiEngine/general/vector/harfbuzz/hb-gpu-paint-fragment.glsl\"");
 }
