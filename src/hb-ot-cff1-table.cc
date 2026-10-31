@@ -654,6 +654,10 @@ _cff1_charstring_may_end_in_seac (const hb_ubytes_t &str,
   if (end >= 5 && str[end - 5] == OpCode_fixedcs)
     return true;
 
+  /* A subroutine can leave the seac operands on the shared stack. */
+  if (last == OpCode_callsubr || last == OpCode_callgsubr)
+    return true;
+
   /* Escaped operators include stack-preserving dotsection. */
   return end >= 2 && str[end - 2] == OpCode_escape;
 }
@@ -661,6 +665,8 @@ _cff1_charstring_may_end_in_seac (const hb_ubytes_t &str,
 bool OT::cff1::accelerator_subset_t::get_seac_components (hb_codepoint_t glyph, hb_codepoint_t *base, hb_codepoint_t *accent) const
 {
   if (unlikely (!is_valid () || (glyph >= num_glyphs))) return false;
+  /* seac uses StandardEncoding names and is not defined in CID-keyed fonts. */
+  if (is_CID ()) return false;
 
   unsigned int fd = fdSelect->get_fd (glyph);
   const hb_ubytes_t str = (*charStrings)[glyph];

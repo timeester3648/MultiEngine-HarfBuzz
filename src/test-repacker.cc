@@ -1853,6 +1853,83 @@ populate_serializer_with_large_liga_overlapping_clone_result (hb_serialize_conte
   c->end_serialize();
 }
 
+static void
+populate_serializer_with_large_liga_null_offsets (hb_serialize_context_t* c, bool split)
+{
+  std::string large_string(100000, 'a');
+  c->start_serialize<char> ();
+
+  constexpr unsigned liga_size = 30000;
+  const char null_offsets[6] = {0};
+
+  unsigned liga[3];
+  unsigned liga_subst[2];
+  unsigned liga_set[2];
+  unsigned liga_subst_count = split ? 2 : 1;
+  unsigned coverage;
+
+  if (split) {
+    // LigaSubst 2
+    coverage = add_coverage(1, 1, c);
+    start_object (large_string.c_str(), liga_size, c);
+    add_virtual_offset(coverage, c);
+    liga[2] = c->pop_pack (false);
+
+    add_liga_set_header(1, c);
+    add_virtual_offset(coverage, c);
+    add_offset(liga[2], c);
+    liga_set[0] = c->pop_pack(false);
+
+    add_liga_header(coverage, 1, c);
+    add_offset(liga_set[0], c);
+    liga_subst[1] = c->pop_pack(false);
+  }
+
+  // LigaSubst 1
+  coverage = add_coverage(0, 1, c);
+  for (int i = split ? 1 : 2; i >= 0; i--) {
+    start_object (large_string.c_str(), liga_size, c);
+    add_virtual_offset(coverage, c);
+    liga[i] = c->pop_pack (false);
+  }
+
+  add_liga_set_header(split ? 1 : 2, c);
+  add_virtual_offset(coverage, c);
+  add_offset(liga[1], c);
+  if (!split)
+    add_offset(liga[2], c);
+  liga_set[1] = c->pop_pack(false);
+
+  // One liga followed by three null offsets.
+  add_liga_set_header(4, c);
+  add_virtual_offset(coverage, c);
+  add_offset(liga[0], c);
+  extend(null_offsets, 6, c);
+  liga_set[0] = c->pop_pack(false);
+
+  add_liga_header(coverage, 2, c);
+  add_offset(liga_set[0], c);
+  add_offset(liga_set[1], c);
+  liga_subst[0] = c->pop_pack(false);
+
+  for (int l = liga_subst_count - 1; l >= 0; l--) {
+    liga_subst[l] = add_extension(liga_subst[l], 4, c);
+  }
+
+  start_lookup (7, liga_subst_count, c);
+  for (unsigned l = 0; l < liga_subst_count; l++) {
+    add_offset(liga_subst[l], c);
+  }
+
+  unsigned lookup = finish_lookup (c);
+
+  unsigned lookup_list = add_lookup_list (&lookup, 1, c);
+
+  add_gsubgpos_header (lookup_list, c);
+
+  c->end_serialize();
+}
+
 template<unsigned liga_subst_count,
          unsigned liga_set_count,
          unsigned liga_per_set_count,
@@ -2622,6 +2699,29 @@ static void test_resolve_with_liga_split_overlapping_clone ()
   free (expected_buffer);
 }
 
+static void test_resolve_with_liga_split_null_offsets ()
+{
+  size_t buffer_size = 400000;
+  void* buffer = malloc (buffer_size);
+  hb_always_assert (buffer);
+  hb_serialize_context_t c (buffer, buffer_size);
+  populate_serializer_with_large_liga_null_offsets(&c, false);
+
+  void* expected_buffer = malloc (buffer_size);
+  hb_always_assert (expected_buffer);
+  hb_serialize_context_t e (expected_buffer, buffer_size);
+  populate_serializer_with_large_liga_null_offsets(&e, true);
+
+  run_resolve_overflow_test ("test_resolve_with_liga_split_null_offsets",
+                             c,
+                             e,
+                             20,
+                             true,
+                             HB_TAG('G', 'S', 'U', 'B'));
+  free (buffer);
+  free (expected_buffer);
+}
+
 static void test_resolve_with_liga_split_shared_table ()
 {
   size_t buffer_size = 400000;
@@ -2994,12 +3094,70 @@ static void test_invalid_link_add_and_move ()
   free (buffer);
 }
 
+static void test_anchor_matrix_sanitize_size_overflow ()
+{
+  // 2 * 46341 * 46341 wraps around to 9266 in 32-bit arithmetic.
+  const unsigned count = 46341;
+  std::string buffer (graph::AnchorMatrix::min_size + 2 * count, '\0');
+  auto* matrix = reinterpret_cast<graph::AnchorMatrix*> (&buffer[0]);
+  matrix->rows = count;
+  graph_t::vertex_t vertex;
+  vertex.set_buffer (&buffer[0], &buffer[0] + buffer.size ());
+
+  hb_always_assert (matrix->sanitize (vertex, 1).is_ok ());
+  hb_always_assert (!matrix->sanitize (vertex, 2).is_ok ());
+  hb_always_assert (!matrix->sanitize (vertex, count).is_ok ());
+
+  matrix->rows = 0;
+  hb_always_assert (matrix->sanitize (vertex, count).is_ok ());
+  vertex.set_buffer (&buffer[0], &buffer[0] + graph::AnchorMatrix::min_size - 1);
+  hb_always_assert (!matrix->sanitize (vertex, count).is_ok ());
+}
+
+static void test_pair_pos_format_2_sanitize_size_overflow ()
+{
+  // 32769 * 65535 * 4 wraps around to 131068 in 32-bit arithmetic.
+  struct pair_pos_t : graph::PairPosFormat2
+  {
+    using graph::PairPosFormat2::valueFormat1;
+    using graph::PairPosFormat2::valueFormat2;
+    using graph::PairPosFormat2::class1Count;
+    using graph::PairPosFormat2::class2Count;
+  };
+  const unsigned min_size = pair_pos_t::min_size;
+  std::string buffer (min_size + 131068, '\0');
+  auto* pair_pos = reinterpret_cast<pair_pos_t*> (&buffer[0]);
+  pair_pos->valueFormat1 = 1;
+  pair_pos->valueFormat2 = 1;
+  pair_pos->class1Count = 32769;
+  pair_pos->class2Count = 65535;
+  graph_t::vertex_t vertex;
+  vertex.set_buffer (&buffer[0], &buffer[0] + buffer.size ());
+
+  hb_always_assert (!pair_pos->sanitize (vertex).is_ok ());
+
+  pair_pos->class1Count = 3;
+  pair_pos->class2Count = 2;
+  vertex.set_buffer (&buffer[0], &buffer[0] + min_size + 3 * 2 * 4);
+  hb_always_assert (pair_pos->sanitize (vertex).is_ok ());
+  vertex.shrink_buffer (1);
+  hb_always_assert (!pair_pos->sanitize (vertex).is_ok ());
+
+  pair_pos->class1Count = 0;
+  vertex.set_buffer (&buffer[0], &buffer[0] + min_size);
+  hb_always_assert (pair_pos->sanitize (vertex).is_ok ());
+  vertex.shrink_buffer (1);
+  hb_always_assert (!pair_pos->sanitize (vertex).is_ok ());
+}
+
 // TODO(garretrieger): update will_overflow tests to check the overflows array.
 // TODO(garretrieger): add tests for priority raising.
 
 int
 main (int argc, char **argv)
 {
+  test_anchor_matrix_sanitize_size_overflow ();
+  test_pair_pos_format_2_sanitize_size_overflow ();
   test_invalid_link_objidx ();
   test_invalid_link_add_and_move ();
   test_serialize ();
@@ -3041,6 +3199,7 @@ main (int argc, char **argv)
   test_resolve_with_liga_split_move ();
   test_dont_duplicate_virtual ();
   test_resolve_with_liga_split_overlapping_clone ();
+  test_resolve_with_liga_split_null_offsets ();
   test_resolve_with_liga_split_shared_table ();
   test_resolve_with_liga_split_shared_coverage ();
   test_deep_graph_traversal ();
