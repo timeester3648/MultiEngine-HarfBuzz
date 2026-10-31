@@ -37,12 +37,6 @@
 
 #define HB_GPU_UNITS_PER_EM 4
 
-/* Flags packed into the high bits of the band-count field of the blob
- * header (texel 1, .r).  The low 8 bits hold num_hbands (at most 16).
- * Keep in sync with HB_GPU_HEADER_FLAG_EVEN_ODD in hb-gpu-fragment.glsl. */
-#define HB_GPU_HEADER_FLAG_EVEN_ODD	0x0100
-#define HB_GPU_HEADER_BAND_COUNT_MASK	0x00FF
-
 
 struct hb_gpu_curve_t
 {
@@ -115,11 +109,6 @@ struct hb_gpu_draw_t
   /* Font scale (set by hb_gpu_draw_set_scale or hb_gpu_draw_glyph). */
   int x_scale = 0;
   int y_scale = 0;
-
-  /* Fill rule baked into the encoded blob.  Persistent configuration:
-   * survives hb_gpu_draw_clear() / hb_gpu_draw_encode(), reset to
-   * non-zero by hb_gpu_draw_reset(). */
-  hb_gpu_fill_rule_t fill_rule = HB_GPU_FILL_RULE_NON_ZERO;
 
   /* Work budget for outline traversal and generated curves.  A paint
    * backend seeds this through the public draw-budget API before drawing

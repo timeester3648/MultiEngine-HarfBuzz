@@ -56,13 +56,7 @@
 
 #define HB_GPU_INV_UNITS float(1.0 / float(HB_GPU_UNITS_PER_EM))
 
-/* Flags in the high bits of the band-count field (blob header texel 1,
- * .r); the low 8 bits are the horizontal band count.  Keep in sync
- * with hb-gpu-draw.hh. */
-#define HB_GPU_HEADER_FLAG_EVEN_ODD	0x100
-#define HB_GPU_HEADER_BAND_COUNT_MASK	0xFF
 
-#ifndef HB_GPU_CUSTOM_ATLAS
 #ifdef HB_GPU_ATLAS_2D
 uniform highp isampler2D hb_gpu_atlas;
 uniform int hb_gpu_atlas_width;
@@ -78,7 +72,6 @@ ivec4 hb_gpu_fetch (int offset)
 {
   return texelFetch (hb_gpu_atlas, offset);
 }
-#endif
 #endif
 
 
@@ -126,17 +119,11 @@ vec2 _hb_gpu_solve_vert_poly (vec2 a, vec2 b, vec2 p1)
 	       (a.y * t2 - b.y * 2.0) * t2 + p1.y);
 }
 
-float _hb_gpu_calc_coverage (float xcov, float ycov, float xwgt, float ywgt,
-			     bool is_even_odd)
+float _hb_gpu_calc_coverage (float xcov, float ycov, float xwgt, float ywgt)
 {
   float coverage = max (abs (xcov * xwgt + ycov * ywgt) /
 			max (xwgt + ywgt, 1.0 / 65536.0),
 			min (abs (xcov), abs (ycov)));
-
-  if (is_even_odd)
-    /* Triangle wave: 0 -> 0, 1 -> 1, 2 -> 0, ...; fractional values
-     * (antialiased edges) map linearly in between. */
-    return 1.0 - abs (1.0 - fract (coverage * 0.5) * 2.0);
 
   return clamp (coverage, 0.0, 1.0);
 }
@@ -149,7 +136,6 @@ struct _hb_gpu_glyph_info
   ivec2 bandIndex;
   int numHBands;
   int numVBands;
-  bool evenOdd;
   vec2 scale;
 };
 
@@ -161,9 +147,8 @@ _hb_gpu_glyph_info _hb_gpu_decode_glyph (vec2 renderCoord, uint glyphLoc_)
   ivec4 header0 = hb_gpu_fetch (gi.glyphLoc);
   ivec4 header1 = hb_gpu_fetch (gi.glyphLoc + 1);
   vec4 ext = vec4 (header0) * HB_GPU_INV_UNITS;
-  gi.numHBands = header1.r & HB_GPU_HEADER_BAND_COUNT_MASK;
+  gi.numHBands = header1.r;
   gi.numVBands = header1.g;
-  gi.evenOdd   = (header1.r & HB_GPU_HEADER_FLAG_EVEN_ODD) != 0;
   gi.scale = vec2 (float (header1.b), float (header1.a));
 
   vec2 extSize = ext.zw - ext.xy;
@@ -319,7 +304,7 @@ float _hb_gpu_slug_single (vec2 renderCoord, vec2 pixelsPerEm, uint glyphLoc_)
   if (vLeftRay)
     ycov = -ycov;
 
-  return _hb_gpu_calc_coverage (xcov, ycov, xwgt, ywgt, gi.evenOdd);
+  return _hb_gpu_calc_coverage (xcov, ycov, xwgt, ywgt);
 }
 
 /* MSAA-aware Slug coverage.  Caller supplies pixelsPerEm so this
